@@ -1,0 +1,490 @@
+PRD 부속 문서: DB PROTOCOL
+=========================
+파일명: DB PROTOCOL.txt
+
+목차
+1. 개요
+2. PostgreSQL ERD (테이블/컬럼/인덱스/관계)
+3. MongoDB 컬렉션 설계 (벡터/캐시/문서 저장소)
+4. 배포/운영 고려사항 (로컬 Docker -> AWS Docker)
+5. API 명세서 (FastAPI <-> Nest.js <-> Next.js)
+   5.1 인증 흐름 (Nest.js)
+   5.2 사용자/데이터 CRUD (Nest.js → PostgreSQL)
+   5.3 AI 기능 API (FastAPI)
+   5.4 프론트엔드(Next.js)와의 통신 패턴
+6. 패킷(파라미터) 상세 정의 (모든 주요 엔드포인트)
+7. 보안/성능/모니터링 권장 설정
+
+1. 개요
+-------
+본 문서는 PRD_기본에 이어, 데이터베이스(클라우드 분리 구성)와 API 통신 규약을 명세합니다.
+운영 환경:
+ - PostgreSQL: 클라우드 매니지드 또는 자체 VM에 배포 (관계형 핵심 데이터)
+ - MongoDB: 벡터·캐시·문서 검색용 별도 클라우드 인스턴스 (벡터 필드 포함)
+ - 로컬 개발: Docker Compose로 PostgreSQL + MongoDB + FastAPI + Nest.js + Next.js 실행
+ - 프로덕션: AWS ECS/EKS 또는 EC2 + Docker로 이전
+
+2. PostgreSQL ERD (관계형 핵심 데이터)
+-------------------------------------
+(아래는 테이블 명세 — ERD 다이어그램을 텍스트로 표현)
+
+TABLE: users
+ - id: UUID PRIMARY KEY
+ - email: VARCHAR(255) UNIQUE NOT NULL
+ - password_hash: VARCHAR(255) NULL (OAuth/Social 로그인 시 NULL 가능)
+ - name: VARCHAR(100)
+ - role: VARCHAR(20) DEFAULT 'user'  -- ('user','nutritionist','admin')
+ - dob: DATE NULL
+ - weight_kg: NUMERIC(5,2) NULL
+ - dialysis_type: VARCHAR(30) NULL  -- ('none','hemodialysis','peritoneal')
+ - ckd_stage: INTEGER NULL  -- 1-5
+ - residual_urine_ml: INTEGER NULL
+ - created_at: TIMESTAMP WITH TIME ZONE DEFAULT now()
+ - updated_at: TIMESTAMP WITH TIME ZONE DEFAULT now()
+Indexes:
+ - idx_users_email (unique)
+ - idx_users_role
+
+TABLE: foods
+ - id: UUID PRIMARY KEY
+ - name: VARCHAR(255) NOT NULL
+ - aliases: TEXT[] NULL  -- 동의어 목록
+ - potassium_mg_per_100g: REAL NULL
+ - phosphorus_mg_per_100g: REAL NULL
+ - sodium_mg_per_100g: REAL NULL
+ - protein_g_per_100g: REAL NULL
+ - energy_kcal_per_100g: REAL NULL
+ - category: VARCHAR(100) NULL
+ - source: VARCHAR(255) NULL  -- 예: 'KFCT','MFDS'
+ - created_at, updated_at
+Indexes:
+ - idx_foods_name (gin trigram 또는 btree)
+ - idx_foods_potassium (for range queries)
+
+TABLE: substitutes
+ - id: UUID PRIMARY KEY
+ - food_id: UUID REFERENCES foods(id) ON DELETE CASCADE
+ - substitute_food_id: UUID REFERENCES foods(id)
+ - score: REAL  -- 추천 적합도 (0.0-1.0)
+ - reason: TEXT
+ - created_at
+Indexes:
+ - idx_substitutes_food
+
+TABLE: recipes
+ - id: UUID PRIMARY KEY
+ - title: VARCHAR(255)
+ - description: TEXT
+ - ingredients: JSONB  -- [{ "food_id": UUID or "name": string, "amount_g": number }]
+ - procedure: TEXT
+ - estimated_k_mg: REAL NULL
+ - estimated_p_mg: REAL NULL
+ - estimated_na_mg: REAL NULL
+ - created_by: UUID REFERENCES users(id) NULL
+ - public: BOOLEAN DEFAULT false
+ - created_at, updated_at
+Indexes:
+ - gin index on ingredients (jsonb_path_ops)
+
+TABLE: user_recipes (사용자가 저장한 레시피/즐겨찾기)
+ - id: UUID PK
+ - user_id: UUID REFERENCES users(id)
+ - recipe_id: UUID REFERENCES recipes(id)
+ - note: TEXT
+ - created_at
+
+TABLE: nutrition_limits (개인화 기준 저장)
+ - id: UUID PK
+ - user_id: UUID REFERENCES users(id) UNIQUE
+ - daily_k_mg: INTEGER  -- 예: 2000
+ - daily_p_mg: INTEGER
+ - daily_na_mg: INTEGER
+ - protein_g_per_kg: REAL
+ - fluid_limit_ml: INTEGER
+ - updated_at
+
+TABLE: sessions (로그인 세션 기록; Nest.js에서 관리)
+ - id: UUID PK
+ - user_id: UUID FK
+ - jwt_jti: VARCHAR(128) UNIQUE  -- JWT jti
+ - refresh_token_hash: VARCHAR(255)
+ - user_agent: TEXT
+ - ip: VARCHAR(50)
+ - created_at, expires_at, revoked_at
+
+TABLE: ai_jobs (AI 처리 트래킹)
+ - id: UUID PK
+ - user_id: UUID NULL
+ - job_type: VARCHAR(50)  -- 'image_analyze','recipe_analyze','summary','quiz'
+ - input_summary: TEXT
+ - status: VARCHAR(20) -- 'pending','running','done','failed'
+ - result_ref: TEXT NULL  -- MongoDB 문서 id 또는 S3 object key
+ - error_msg: TEXT NULL
+ - created_at, finished_at
+
+TABLE: logs (행동/접속 로그, 분석 추적)
+ - id: BIGSERIAL PK
+ - user_id: UUID NULL
+ - source: VARCHAR(50) -- 'frontend','fastapi','nest'
+ - action: VARCHAR(100)
+ - payload: JSONB
+ - created_at
+
+관계 요약:
+ - users 1 --- * user_recipes
+ - users 1 --- 1 nutrition_limits
+ - recipes * --- * foods (via ingredients json)
+ - foods 1 --- * substitutes
+
+3. MongoDB 설계 (벡터/검색/캐시)
+--------------------------------
+Mongo는 비정형 데이터, 임베딩 벡터, LLM 대화 로그, 캐시용으로 사용.
+
+COLLECTION: embeddings
+ - _id: ObjectId
+ - text: string  -- 원문(예: 재료 설명, 레시피 문장)
+ - metadata: { source: 'KFCT'|'recipe'|'food', source_id: UUID or string, food_name: string, language: 'ko' }
+ - embedding: [float]  -- 임베딩 배열 (예: 1536-d)
+ - created_at: ISODate
+Indexes:
+ - text index on text
+ - (if using MongoDB Atlas Vector Search) vector index on embedding
+
+COLLECTION: chat_logs
+ - _id
+ - user_id: UUID or null
+ - prompt: string
+ - response: string
+ - llm_model: string
+ - tokens_used: integer
+ - latency_ms: integer
+ - created_at
+Indexes:
+ - idx_user_created_at
+
+COLLECTION: cache_responses
+ - _id
+ - cache_key: string (hash of prompt + params)
+ - response: JSON
+ - ttl: Date (expireAfterSeconds)
+ - created_at
+Indexes:
+ - TTL index on ttl
+
+COLLECTION: reference_docs
+ - _id
+ - title
+ - content: string
+ - source
+ - metadata: {published_date, url}
+ - embedding: [float] optional
+ - created_at
+Indexes:
+ - text index on content
+
+COLLECTION: feedbacks
+ - _id
+ - user_id
+ - item_ref: {type:'recipe'|'food'|'quiz', id:UUID}
+ - rating: integer
+ - comment: string
+ - created_at
+
+4. 배포/운영 고려사항
+---------------------
+로컬 개발:
+ - Docker Compose 파일 예시 서비스:
+    - postgres:13 (환경변수, volume 바인딩)
+    - mongo:5.0 (혹은 mongo:latest)
+    - redis: optional (세션/캐시)
+    - backend-fastapi: build ./backend/fastapi
+    - backend-nest: build ./backend/nest
+    - frontend-next: build ./frontend
+ - 네트워크: 별도 브리지 네트워크로 통신 설정
+ - 시크릿: .env 파일 (로컬은 .env.local, 배포시 비밀관리 사용)
+
+클라우드(예: AWS):
+ - PostgreSQL: RDS (Multi-AZ), backups, read-replicas
+ - MongoDB: MongoDB Atlas 또는 EC2에 도커 컨테이너 (Mongo ReplicaSet 권장)
+ - Docker: ECS/Fargate 또는 EKS (Kubernetes)
+ - CI/CD: GitHub Actions → 이미지 빌드 → ECR push → ECS 서비스 업데이트
+ - 모니터링: Prometheus + Grafana, AWS CloudWatch
+ - 보안: VPC, Security Group, IAM Roles, KMS 암호화
+
+5. API 명세서 (FastAPI ↔ Nest.js ↔ Next.js)
+------------------------------------------
+요약: Next.js(사용자 UI) ↔ Nest.js(인증/권한 및 CRUD) ↔ FastAPI(LLM/AI 처리)
+ - 인증: Nest.js가 JWT 발급/갱신 담당. FastAPI 호출 시 Authorization: Bearer <access_token> 헤더를 전달.
+ - 권한 체크: FastAPI는 전달된 JWT의 서명/권한을 검증하거나 Nest.js와 상호 검증 가능한 JWK endpoint 사용.
+
+5.1 인증 흐름 (Nest.js)
+ - POST /auth/register
+   - 설명: 사용자 등록
+   - Request:
+     {
+       "email": "user@example.com",
+       "password": "PlainTextPassword",
+       "name": "홍길동",
+       "dob": "1980-01-01"
+     }
+   - Response 201:
+     { "id": "<uuid>", "email": "...", "name": "..." }
+   - Validation:
+     - email 형식, password 최소 8자, name non-empty
+
+ - POST /auth/login
+   - 설명: 로그인 및 액세스 토큰 발급
+   - Request:
+     { "email": "user@example.com", "password": "PlainTextPassword" }
+   - Response 200:
+     {
+       "access_token": "<jwt>",
+       "refresh_token": "<opaque-refresh-token>",
+       "expires_in": 3600,
+       "token_type": "Bearer",
+       "user": { "id": "<uuid>", "email": "...", "name":"..." }
+     }
+   - Notes:
+     - access_token JWT에는 sub(user_id), role, jti 포함
+     - refresh_token은 DB(session.refresh_token_hash)에 해시로 저장
+
+ - POST /auth/refresh
+   - Request: { "refresh_token": "<token>" }
+   - Response: new access_token + refresh_token (rotate)
+
+ - POST /auth/logout
+   - Request: Authorization header + body: { "refresh_token": "<token>" }
+   - Action: revoke session (set revoked_at)
+
+5.2 사용자/데이터 CRUD (Nest.js → PostgreSQL)
+ - GET /api/users/me
+   - Auth required
+   - Response:
+     {
+       "id": "...",
+       "email": "...",
+       "name": "...",
+       "ckd_stage": 4,
+       "dialysis_type": "hemodialysis",
+       "nutrition_limits": { "daily_k_mg":2000, "daily_p_mg":800, "daily_na_mg":2000 }
+     }
+
+ - PUT /api/users/me
+   - Request body (partial update):
+     { "weight_kg": 68.5, "ckd_stage": 5, "residual_urine_ml": 100 }
+   - Validation: weight positive, ckd_stage 1..5
+
+ - POST /api/recipes
+   - Create recipe (auth)
+   - Body:
+     {
+       "title": "저칼륨 두부조림",
+       "ingredients": [ {"name":"두부","amount_g":200}, {"name":"간장","amount_g":10} ],
+       "procedure": "두부를 ~",
+       "public": false
+     }
+   - Server will compute estimated_k_mg by joining foods table (or fallback to embeddings search)
+
+ - GET /api/recipes/:id
+   - Returns recipe + computed nutrition estimates
+
+ - GET /api/foods?query=감자&limit=10
+   - Search foods table (trigram/gin)
+   - Response: array of foods with per 100g nutrition
+
+ - POST /api/feedbacks
+   - Body: { "item_ref": {"type":"recipe","id":"..."}, "rating":5, "comment":"좋아요" }
+
+5.3 AI 기능 API (FastAPI) — 핵심
+ - 공통:
+   - Header: Authorization: Bearer <access_token> (JWT)
+   - Header: X-Request-ID: uuid (추적용)
+   - Rate-limit: per-user (협의)
+
+ - POST /ai/analyze-image
+   - 설명: 음식 사진 분석 → 재료 추출 → 영양소 추정 → 위험도 판정
+   - Request (multipart/form-data):
+     - file: image/jpeg/png (required)
+     - user_id: uuid (optional, header or body)
+     - context: { "meal_time":"lunch", "serving_estimate_g": 400 } (optional)
+   - Processing:
+     1) 이미지 라벨링/요리명 추출 (Vision model or CLIP)
+     2) 프롬프트로 LLM에 "요리명과 예상 재료" 요청
+     3) 재료별 매칭 → foods 테이블 또는 MongoDB.embeddings로 매핑
+     4) 영양 합산 및 안전도 계산 (영양 한계는 users->nutrition_limits 사용)
+     5) 캐싱: cache_responses에 저장 (key: hash(image + user_id + context))
+   - Response 200:
+     {
+       "job_id": "<uuid>",
+       "detected_dish": "김치찌개",
+       "ingredients": [
+         { "name":"김치", "matched_food_id": "<uuid or null>", "amount_g": 200, "potassium_mg": 700, "phosphorus_mg": 50 }
+       ],
+       "totals": { "k_mg": 1850, "p_mg": 120, "na_mg": 2300 },
+       "safety": { "k_status":"warning", "p_status":"safe", "na_status":"danger" },
+       "suggested_substitutes": [ { "original":"김치", "substitute":"저염 김치", "reason": "나트륨↓" } ],
+       "explain": "이미지와 레시피 분석 기반 산출 방식..."
+     }
+   - Errors:
+     - 400: invalid image
+     - 401: missing/invalid token
+     - 422: unable to map ingredients
+
+ - POST /ai/analyze-recipe
+   - Request JSON:
+     {
+       "text": "무슨무슨 레시피 텍스트...",
+       "user_id": "...",
+       "unit_hint": "g"  // or 'cup','tbsp' (server normalizes)
+     }
+   - Response: similar to analyze-image but using parsed ingredients
+
+ - POST /ai/recommend-substitutes
+   - Body:
+     {
+       "ingredients": [ {"name":"감자","amount_g":200}, ... ],
+       "user_id": "...",
+       "constraints": { "max_k_mg_per_serving": 500 }
+     }
+   - Response: list of substitutions with score and estimated totals
+
+ - POST /ai/summary
+   - Body:
+     { "text": "...", "max_lines": 5, "style": "patient_friendly" }
+   - Response:
+     { "summary": "...", "key_points": ["...","..."] }
+
+ - POST /ai/generate-quiz
+   - Body:
+     { "context_text":"...", "num_questions":3, "types":["mcq","truefalse"] }
+   - Response:
+     { "quiz": [ { "type":"mcq", "question":"...", "options":[...], "answer": 2, "explain":"..." }, ... ] }
+
+ - POST /ai/chat
+   - Conversational endpoint (session-based)
+   - Body:
+     {
+       "session_id": "<uuid>",
+       "message": "오늘 점심 뭐 먹을까?",
+       "history": [ {"role":"user","text":"..."}, {"role":"assistant","text":"..."} ]  // optional
+     }
+   - Response:
+     { "message": "...", "source": "gpt-4o-mini", "usage": { "tokens": 432 } }
+
+5.4 프론트엔드(Next.js)와의 통신 패턴
+ - 인증:
+   1) User -> Next.js login form -> POST /auth/login (Nest.js)
+   2) Next.js stores access_token in memory (or httpOnly cookie) and refresh_token in httpOnly cookie
+ - AI 요청:
+   - Option A (권장): Next.js -> FastAPI directly (with Authorization header)
+     - 장점: 낮은 레이턴시, 간단한 라우팅
+     - 단점: CORS / 토큰 전달 보안 확인 필요
+   - Option B: Next.js -> Nest.js proxy -> Nest.js forwards to FastAPI
+     - 장점: 통합된 인증/로깅, 중앙정책 적용
+     - 단점: 약간의 오버헤드
+
+6. 패킷 파라미터 상세 정의 (대표 예시)
+---------------------------------------
+아래는 각 엔드포인트의 필드 타입, 필수 여부, 설명, 유효성 규칙을 정리합니다.
+
+6.1 POST /auth/login (Nest.js)
+ - Content-Type: application/json
+ - Body:
+   - email (string, required): RFC5322 형식, max 255
+   - password (string, required): min length 8, max 128
+ - Response 200:
+   - access_token (string, JWT)
+   - refresh_token (string)
+   - expires_in (integer, seconds)
+   - user (object)
+ - Errors:
+   - 400: invalid input
+   - 401: auth failed
+
+6.2 POST /ai/analyze-image (FastAPI)
+ - Content-Type: multipart/form-data
+ - Headers:
+   - Authorization: Bearer <jwt> (required)
+   - X-Request-ID: uuid (recommended)
+ - Form fields:
+   - file (file, required) : image, max 10MB
+   - user_id (uuid, optional) : 사용자가 인증된 경우 없는경우 무시
+   - context (json string, optional) : {"meal_time":"dinner","serving_estimate_g":400}
+ - Validation:
+   - image MIME type jpeg/png
+   - file size limit enforced
+ - Typical Response fields (types):
+   - job_id: uuid (string)
+   - detected_dish: string
+   - ingredients: array of objects {
+       name: string,
+       matched_food_id: uuid|null,
+       amount_g: number|null,
+       potassium_mg: number|null,
+       phosphorus_mg: number|null,
+       sodium_mg: number|null
+     }
+   - totals: { k_mg: number, p_mg:number, na_mg:number }
+   - safety: { k_status: enum('safe','warning','danger'), ... }
+   - suggested_substitutes: array [{ original:string, substitute:string, score:number, reason:string }]
+ - Errors:
+   - 429: rate limit
+   - 500: LLM backend error (include job_id)
+
+6.3 POST /api/recipes (Nest.js)
+ - Content-Type: application/json
+ - Auth: Bearer token
+ - Body:
+   - title (string, required)
+   - ingredients (array, required) : each item { name: string, amount_g: number (required or null) }
+   - procedure (string, optional)
+   - public (boolean, default false)
+ - Response 201: created recipe object with id and estimated nutrient totals (server-calculated)
+
+6.4 POST /ai/recommend-substitutes (FastAPI)
+ - Body JSON:
+   - ingredients: array of { name: string, amount_g: number }
+   - user_id: uuid optional
+   - constraints: { max_k_mg_per_serving: number, avoid_foods: [string] }
+ - Response:
+   - substitutes: array of { original: string, substitute: string, substitute_food_id: uuid|null, score: float, est_change: {k_mg_delta: number, p_mg_delta: number} }
+
+6.5 POST /ai/chat (FastAPI)
+ - Body:
+   - session_id (uuid) optional
+   - message (string, required)
+   - history (array) optional
+ - Response:
+   - message (string)
+   - session_id (uuid)  -- 새로 생성된 경우 반환
+   - usage: { tokens: integer, model: string }
+ - Notes:
+   - 서버는 'history'를 바탕으로 context window 관리
+   - history는 최대 20턴 또는 토큰 한도 내로 잘라서 전송
+
+7. 보안 / 성능 / 모니터링 권장
+-----------------------------
+보안:
+ - TLS(HTTPS) 필수
+ - JWT 서명은 RS256 권장 (비대칭 키), JWK endpoint 제공
+ - Refresh token은 httpOnly, Secure cookie에 저장, DB에 해시로 보관
+ - 민감 데이터(혈액검사 수치 등)는 at-rest encryption(KMS) 적용
+
+성능:
+ - FastAPI: Uvicorn + Gunicorn with workers (UVLoop)
+ - Connection pooling for PostgreSQL (asyncpg)
+ - MongoDB: index on embedding, use Atlas Vector Search if 가능
+ - Redis: rate-limiter and ephemeral cache
+
+모니터링:
+ - Tracing: OpenTelemetry (서비스 간 연동, X-Request-ID)
+ - Logs: structured JSON log
+ - Metrics: Prometheus + Grafana
+ - Alerts: latency, error-rate, data-drift (nutrition estimate deviations)
+
+부록: 예시 JSON 페이로드 (간단)
+ - /ai/analyze-image (multipart) : file + context JSON
+ - /ai/summary
+   { "text":"레시피 원문...", "max_lines":5, "style":"patient_friendly" }
+
+끝.
