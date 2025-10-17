@@ -134,7 +134,35 @@
     streamlit run app.py
     ```
 
-### **7.3 주요 커밋 기록 및 업데이트 내역**
+### **7.3 Git 워크플로우**
+**푸시 전 필수 규칙: 항상 Pull → 충돌 체크 → Commit → Push**
+
+```bash
+# 1. 원격 저장소에서 최신 변경사항 가져오기 (충돌 체크)
+git pull origin main
+
+# 2. 변경사항 스테이징
+git add .
+
+# 3. 커밋
+git commit -m "커밋 메시지"
+
+# 4. 푸시
+git push origin main
+```
+
+**충돌 발생 시 해결 방법:**
+```bash
+# 충돌 파일 확인
+git status
+
+# 충돌 수동 해결 후
+git add .
+git commit -m "Resolve merge conflicts"
+git push origin main
+```
+
+### **7.4 주요 커밋 기록 및 업데이트 내역**
 
 | 날짜 | 업데이트 내용 | 담당자 |
 | :--- | :--- | :--- |
