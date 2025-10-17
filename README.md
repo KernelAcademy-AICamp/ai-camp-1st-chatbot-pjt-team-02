@@ -109,6 +109,14 @@
     python -m venv venv
     source venv/bin/activate  # Windows: venv\Scripts\activate
     ```
+    ```bash ( 로컬 )
+    conda create --prefix 환경이름 python=3.11
+    conda env remove --prefix 환경이름  OR 그냥 지움
+    conda activate 환경이름
+    conda deactivate
+    conda env list
+    conda list   # 현재 환경의 패키지 목록 확인
+    ```
 
 3.  **필수 라이브러리 설치:**
     ```bash
