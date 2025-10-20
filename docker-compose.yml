@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 데이터베이스
+  postgres:
+    image: postgres:15
+    container_name: kongdak_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-kongdak_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kongdak2024}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - kongdak_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # FastAPI 백엔드
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kongdak_backend
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-kongdak2024}@postgres:5432/${DB_NAME:-kongdak_db}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - FAISS_INDEX_PATH=/app/data/faiss_index
+      - PDF_DATA_PATH=/app/data/pdfs
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+      - ./Documents/Data:/app/data/pdfs
+    networks:
+      - kongdak_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # Streamlit 프론트엔드
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kongdak_frontend
+    environment:
+      - BACKEND_URL=http://backend:8000
+    ports:
+      - "${STREAMLIT_PORT:-8501}:8501"
+    volumes:
+      - ./frontend:/app
+    networks:
+      - kongdak_network
+    depends_on:
+      - backend
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  kongdak_network:
+    driver: bridge

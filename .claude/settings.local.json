@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(git config --list)",
+      "Read(//Users/test/**)",
+      "Bash(echo \"이 방법을 사용하시려면 다음 명령어를 실행하세요:\n\n# 1. 자신의 GitHub에서 저장소 Fork\n# 2. Fork한 저장소를 remote에 추가\ngit remote add myfork https://github.com/rhgiddp/ai-camp-1st-chatbot-pjt-team-02.git\n\n# 3. Fork한 저장소로 push\ngit push myfork kimunsuk\n\n# 4. GitHub 웹에서 Pull Request 생성\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

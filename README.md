@@ -1,24 +1,53 @@
-# **LLM API를 활용한 학습 보조 챗봇 개발**
-본 프로젝트는 OpenAI, Claude 등 최신 대규모 언어 모델(LLM) API를 활용하여 사용자의 학습 효율을 높이는 보조 챗봇 프로토타입을 개발합니다. 사용자가 제공한 문서(강의 노트, 기사 등)를 기반으로 **요약, Q&A, 문제 생성, 관련 자료 추천** 등 핵심적인 학습 지원 기능을 제공하는 것을 목표로 합니다.
+# 🥗 콩닥식탁 - 신장 투석 환자 맞춤형 식단 관리 챗봇
+
+신장 투석 환자를 위한 AI 기반 맞춤형 식단 관리 챗봇입니다. OpenAI GPT API와 RAG 기술을 활용하여 음식의 영양 성분을 분석하고, 안전한 대체 레시피를 제안합니다.
 
 - **프로젝트 기간:** 2025.10.16 ~ 2025.10.22 (총 1주일)
-- **배포 링크:** [서비스 바로가기](링크 입력) *(완료 후 추가)*
+- **배포 방식:** Docker Compose (로컬 환경)
+- **프론트엔드:** http://localhost:8501
+- **백엔드 API:** http://localhost:8000/api/docs
 
 ---
 
-## **1. 서비스 구성 요소**
-### **1.1 주요 기능**
-- **요약 및 Q&A 자동 생성 (1순위):** 사용자가 입력한 텍스트를 지정된 분량으로 요약하고, 해당 내용을 기반으로 예상 질문과 답변을 생성합니다.
-- **맞춤형 과제/시험 문제 생성 (2순위):** 문서 내용을 기반으로 객관식, 주관식 등 다양한 형태의 문제를 자동 생성하여 사용자의 이해도 점검을 돕습니다.
-- **학습 자료 추천 (3순위):** 문서의 핵심 키워드를 분석하여 심화 학습에 도움이 될 만한 관련 자료(기사, 블로그, 논문 등)를 추천합니다.
+## 📌 주요 기능
 
-### **1.2 사용자 흐름**
-- **사용자 시나리오 예시:**
-  1. 사용자가 학습할 문서(텍스트 파일 또는 직접 입력)를 웹 UI에 업로드합니다.
-  2. 챗봇이 문서의 핵심 내용을 5줄로 요약하여 보여줍니다.
-  3. 사용자는 'Q&A 생성' 버튼을 클릭하여 문서 기반의 질의응답 세트를 확인합니다.
-  4. 사용자는 '문제 생성' 버튼을 누르고 '객관식' 유형을 선택하여 3개의 문제를 받습니다.
-  5. 사용자는 '관련 자료 추천' 버튼을 눌러 문서의 주제와 관련된 추가 학습 자료 링크를 확인합니다.
+### 1️⃣ 요약 및 Q&A 자동생성 [필수]
+- **음식 영양 성분 분석**
+  - "떡볶이 먹어도 될까요?" 같은 자연어 질문
+  - LLM이 재료를 자동 추출 (떡, 고추장, 어묵, 파)
+  - PostgreSQL에서 영양 정보 조회 및 계산
+  - 나트륨, 칼륨, 인, 단백질, 칼로리 분석
+
+- **위험도 평가**
+  - 신장 환자 기준치 대비 평가 (🟢안전/🟡주의/🔴위험)
+  - 초과 영양소 자동 감지
+
+- **대체 레시피 제안**
+  - RAG 기반 식약처/대한신장학회 가이드라인 검색
+  - 저나트륨/저칼륨 대체 재료 추천
+  - 조리 팁 제공
+
+### 2️⃣ 맞춤형 퀴즈 생성 [필수]
+- **학습 강화 퀴즈**
+  - 객관식, 주관식, O/X 문제 자동 생성
+  - 위험도 높은 음식 질문 시 퀴즈 제안
+  - 정답/해설 즉시 피드백
+  - 정답률 추적
+
+### 3️⃣ 학습 자료 추천 [부가]
+- **신뢰할 수 있는 자료 검색**
+  - 식약처, 대한신장학회 등 공식 기관 자료
+  - 웹 크롤링 기반 최신 자료 수집
+  - 관련성 점수 평가 및 정렬
+
+## 🎬 사용 시나리오
+
+1. **채팅 탭**에서 "떡볶이 먹어도 될까요?" 질문
+2. AI가 재료 분석 → 영양소 계산 → 위험도 평가
+3. 나트륨 초과 경고 및 저염 레시피 제안
+4. "📝 퀴즈로 복습하기" 버튼 클릭
+5. **영양 분석 탭**에서 차트로 영양소 비율 확인
+6. **학습 자료 탭**에서 "저염식 레시피" 검색
 
 ---
 
@@ -97,41 +126,154 @@
 - **프레임워크:** [FastAPI 공식 문서](https://fastapi.tiangolo.com/), [Streamlit 공식 문서](https://docs.streamlit.io/)
 - **프롬프트 가이드:** [OpenAI Prompt Engineering Guide](https://platform.openai.com/docs/guides/prompt-engineering)
 
-### **7.2 설치 및 실행 방법**
-1.  **Repository 클론:**
-    ```bash
-    git clone [https://github.com/your-repo/your-project.git](https://github.com/your-repo/your-project.git)
-    cd your-project
-    ```
+## 🚀 빠른 시작
 
-2.  **가상환경 생성 및 활성화:**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # Windows: venv\Scripts\activate
-    ```
+### 1. 환경 설정
 
-3.  **필수 라이브러리 설치:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-4.  **.env 파일 생성 및 API 키 설정:**
-    - 프로젝트 루트에 `.env` 파일을 생성하고 아래 내용을 추가합니다.
-    ```
-    OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
-    ANTHROPIC_API_KEY="YOUR_ANTHROPIC_API_KEY"
-    ```
+```bash
+# 1. Repository 클론
+git clone https://github.com/KernelAcademy-AICamp/ai-camp-1st-chatbot-pjt-team-02.git
+cd ChatBot
 
-5.  **애플리케이션 실행:**
-    ```bash
-    streamlit run app.py
-    ```
+# 2. 환경 변수 설정
+cp .env.example .env
 
-### **7.3 주요 커밋 기록 및 업데이트 내역**
+# 3. .env 파일 편집 (필수!)
+# OPENAI_API_KEY=sk-your-api-key-here
+# DB_PASSWORD=kongdak2024
+```
 
-| 날짜 | 업데이트 내용 | 담당자 |
-| :--- | :--- | :--- |
-| YYYY.MM.DD | 프로젝트 초기 설정 및 `README.md` 작성 | 팀원1 |
-| YYYY.MM.DD | 요약 및 Q&A 기능 프롬프트 설계 및 API 연동 | 팀원2 |
-| YYYY.MM.DD | Streamlit 기본 UI 레이아웃 구현 | 팀원3 |
-| YYYY.MM.DD | 문제 생성 기능 개발 및 출력 포맷 통일 | 팀원2 |
-| YYYY.MM.DD | 전체 기능 통합 및 최종 테스트 | 전원 |
+### 2. 데이터 초기화 (최초 1회)
+
+**중요**: 이 프로젝트는 국가표준식품성분표 엑셀 파일에서 데이터를 읽어 PostgreSQL과 FAISS에 로드합니다.
+
+```bash
+# 자동 초기화 (권장)
+cd scripts
+./initialize_data.sh
+
+# 수동 초기화
+python3 scripts/load_excel_to_db.py         # 1. 국가표준식품성분표 → DB
+python3 scripts/load_pdfs_to_faiss.py       # 2. FAISS 로드 (선택)
+```
+
+**필수 데이터 파일:**
+- `Documents/Data/국가표준식품성분표_250426공개.xlsx` - **필수** (1000+ 식품 영양 정보)
+- `Documents/Data/alternatives.xlsx` - 선택 (대체 재료 매핑, 직접 작성)
+- `Documents/Data/*.pdf` - 선택 (RAG용 참고 문서)
+
+자세한 내용: [DATA_INITIALIZATION.md](Documents/Data생성설명/DATA_INITIALIZATION.md)
+
+### 3. 실행 방법
+
+#### 방법 A: 자동 실행 스크립트 (권장)
+```bash
+# macOS/Linux
+./start.sh
+
+# Windows (Git Bash)
+bash start.sh
+```
+
+#### 방법 B: Docker Compose 직접 실행
+```bash
+# 컨테이너 시작
+docker-compose up -d
+
+# 로그 확인
+docker-compose logs -f
+
+# 종료
+docker-compose down
+```
+
+### 4. 접속 확인
+
+- **프론트엔드 (Streamlit)**: http://localhost:8501
+- **백엔드 API 문서**: http://localhost:8000/api/docs
+- **PostgreSQL**: localhost:5432 (postgres/kongdak_db)
+
+## 📁 프로젝트 구조
+
+```
+ChatBot/
+├── backend/                 # FastAPI 백엔드
+│   ├── app/
+│   │   ├── main.py         # FastAPI 메인
+│   │   ├── config.py       # 환경 설정
+│   │   ├── models/         # DB 모델 & 스키마
+│   │   ├── services/       # 비즈니스 로직
+│   │   │   ├── llm_service.py      # OpenAI API
+│   │   │   ├── rag_service.py      # FAISS RAG
+│   │   │   ├── nutrition.py        # 영양 분석
+│   │   │   └── scraper.py          # 웹 크롤링
+│   │   ├── routers/        # API 라우터
+│   │   └── utils/          # 프롬프트 관리
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/                # Streamlit 프론트엔드
+│   ├── app.py              # 메인 UI
+│   ├── Dockerfile
+│   └── requirements.txt
+├── database/                # DB 초기화
+│   └── init.sql            # 테이블 스키마 (데이터는 엑셀에서 로드)
+├── scripts/                 # 데이터 로딩 스크립트 ⭐
+│   ├── load_excel_to_db.py         # 국가표준식품성분표 → PostgreSQL
+│   ├── load_pdfs_to_faiss.py       # PDF → FAISS
+│   ├── initialize_data.sh          # 통합 실행 스크립트
+│   └── requirements.txt            # 스크립트 의존성
+├── Documents/               # 학습 자료
+│   ├── Data/               # 데이터 파일 ⭐
+│   │   ├── 국가표준식품성분표_250426공개.xlsx  # 식품 영양 정보 (필수)
+│   │   ├── alternatives.xlsx      # 대체 재료 매핑 (선택)
+│   │   └── *.pdf                  # RAG용 참고 문서 (선택)
+│   └── kongdak_prd.md      # 프로젝트 요구사항
+├── docker-compose.yml       # Docker 오케스트레이션
+├── .env.example            # 환경 변수 템플릿
+├── start.sh                # 실행 스크립트
+├── DATA_INITIALIZATION.md   # 데이터 초기화 가이드 ⭐
+├── DEMO.md                 # 시연 가이드
+├── TASK_LIST.md            # 작업 목록
+└── CLAUDE.md               # Claude Code 가이드
+```
+
+## 📝 시연 가이드
+
+자세한 시연 방법은 [DEMO.md](DEMO.md)를 참조하세요.
+
+### 시연 시나리오 요약
+1. **떡볶이 질문** → 나트륨 초과 경고 → 저염 레시피 제안
+2. **퀴즈 생성** → 문제 풀기 → 정답 확인
+3. **자료 검색** → 신뢰할 수 있는 기관 자료 추천
+
+## ⚠️ 주의사항
+
+### 필수 설정
+- **OpenAI API Key**: `.env` 파일에 반드시 설정 필요
+- **Docker**: Docker Desktop 실행 필수
+- **포트**: 5432(PostgreSQL), 8000(Backend), 8501(Frontend) 사용 가능 확인
+
+### 트러블슈팅
+```bash
+# 백엔드 연결 실패 시
+docker-compose logs backend
+
+# PostgreSQL 연결 확인
+docker-compose exec postgres psql -U postgres -d kongdak_db
+
+# 전체 재시작
+docker-compose down -v
+docker-compose up -d
+```
+
+## 📚 추가 문서
+
+- **[DATA_INITIALIZATION.md](Documents/Data생성설명/DATA_INITIALIZATION.md)**: 데이터 초기화 상세 가이드 ⭐
+- **[CLAUDE.md](CLAUDE.md)**: Claude Code 작업 가이드
+- **[TASK_LIST.md](TASK_LIST.md)**: 상세 작업 리스트
+- **[DEMO.md](DEMO.md)**: 시연 가이드
+- **[Documents/kongdak_prd.md](Documents/kongdak_prd.md)**: 상세 PRD
+
+## 🏆 팀원 소개
+
+Team 02 - 콩닥식탁 개발팀
