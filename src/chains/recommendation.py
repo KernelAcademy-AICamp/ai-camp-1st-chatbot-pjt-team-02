@@ -89,9 +89,10 @@ def create_recommendation_chain(
     ])
 
     def get_recommendation_context(inputs):
-        """추천을 위한 컨텍스트 검색"""
+        """추천을 위한 컨텍스트 검색 (MongoDB → RAG → 웹 검색)"""
         dish_name = inputs['dish_name']
-        context = get_context_for_recommendation(retriever, dish_name)
+        ingredients = inputs.get('ingredients', '')
+        context = get_context_for_recommendation(retriever, dish_name, ingredients)
         return {**inputs, "context": context}
 
     # 2단계: 최종 추천 체인
