@@ -128,7 +128,23 @@
 
 ## 🚀 빠른 시작
 
+<<<<<<< HEAD
 ### 1. 환경 설정
+=======
+2.  **가상환경 생성 및 활성화:**
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Windows: venv\Scripts\activate
+    ```
+    ```bash ( 로컬 )
+    conda create --prefix 환경이름 python=3.11
+    conda env remove --prefix 환경이름  OR 그냥 지움
+    conda activate 환경이름
+    conda deactivate
+    conda env list
+    conda list   # 현재 환경의 패키지 목록 확인
+    ```
+>>>>>>> origin/main
 
 ```bash
 # 1. Repository 클론
@@ -138,10 +154,37 @@ cd ChatBot
 # 2. 환경 변수 설정
 cp .env.example .env
 
-# 3. .env 파일 편집 (필수!)
-# OPENAI_API_KEY=sk-your-api-key-here
-# DB_PASSWORD=kongdak2024
+### **7.3 Git 워크플로우**
+**푸시 전 필수 규칙: 항상 Pull → 충돌 체크 → Commit → Push**
+**커밋 메시지는 한글로 작성**
+**LLM 에 커밋하고 푸쉬해라고 명령함**
+
+```bash
+# 1. 원격 저장소에서 최신 변경사항 가져오기 (충돌 체크)
+git pull origin main
+
+# 2. 변경사항 스테이징
+git add .
+
+# 3. 커밋
+git commit -m "커밋 메시지"
+
+# 4. 푸시
+git push origin main
 ```
+
+**충돌 발생 시 해결 방법:**
+```bash
+# 충돌 파일 확인
+git status
+
+# 충돌 수동 해결 후
+git add .
+git commit -m "Resolve merge conflicts"
+git push origin main
+```
+
+### **7.4 주요 커밋 기록 및 업데이트 내역**
 
 ### 2. 데이터 초기화 (최초 1회)
 
