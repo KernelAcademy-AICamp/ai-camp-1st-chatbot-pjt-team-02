@@ -15,4 +15,5 @@ jupyter
 ipykernel
 matplotlib
 graphviz
+pandas
 
