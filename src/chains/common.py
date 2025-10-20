@@ -60,25 +60,66 @@ def get_context_for_ingredients(retriever, dish_name: str) -> str:
     return context
 
 
-def get_context_for_recommendation(retriever, dish_name: str) -> str:
-    """추천을 위한 컨텍스트 검색 (RAG + 웹 검색 Fallback)"""
+def get_context_for_recommendation(retriever, dish_name: str, ingredients: str = "") -> str:
+    """
+    추천을 위한 컨텍스트 검색 (MongoDB → RAG → 웹 검색 3단계 Fallback)
+
+    Args:
+        retriever: RAG retriever
+        dish_name: 요리명
+        ingredients: 추출된 재료 정보 (선택)
+
+    Returns:
+        통합 컨텍스트 문자열
+    """
+    from src.utils.alternative_search import search_alternatives_from_mongodb, extract_ingredients_from_text
+
+    context_parts = []
+
+    # 1단계: MongoDB에서 대체재 검색 (최우선)
+    try:
+        # 재료 리스트 추출
+        if ingredients:
+            ingredient_list = extract_ingredients_from_text(ingredients)
+        else:
+            # dish_name에서 일반적인 재료 추측 (간단한 버전)
+            ingredient_list = [dish_name]
+
+        logger.info(f"📋 음식 재료 추출 완료: {ingredient_list}")
+        logger.info(f"🔍 MongoDB 대체재 검색 시작...")
+        mongodb_results = search_alternatives_from_mongodb(ingredient_list, max_per_ingredient=3)
+
+        if mongodb_results:
+            context_parts.append(f"[MongoDB 대체재 검색 결과]\n{mongodb_results}")
+            # 결과 간단히 요약해서 출력
+            result_lines = mongodb_results.strip().split('\n')
+            result_summary = result_lines[0] if result_lines else "대체재 발견"
+            logger.info(f"✅ MongoDB 대체재 검색 완료: {result_summary[:80]}...")
+        else:
+            logger.warning("⚠️ MongoDB에서 대체재를 찾지 못했습니다.")
+    except Exception as e:
+        logger.error(f"❌ MongoDB 검색 실패: {e}")
+
+    # 2단계: RAG 검색
     query = f"저칼륨 저인 식품 대체재 {dish_name}"
     docs = retriever.retrieve(query)
-
     total_length = sum(len(doc.page_content) for doc in docs)
     min_required_length = 500
 
     if total_length >= min_required_length:
-        context = "\n\n".join([doc.page_content for doc in docs])
+        rag_context = "\n\n".join([doc.page_content for doc in docs])
+        context_parts.append(f"[RAG 검색 결과]\n{rag_context}")
         logger.info("✅ 대체재 추천: RAG 검색 결과 사용")
     else:
+        # 3단계: 웹 검색 Fallback
         logger.warning("⚠️ 대체재 추천: RAG 검색 결과 부족 -> 웹 검색 실행 중...")
-        rag_context = "\n\n".join([doc.page_content for doc in docs])
+        rag_context = "\n\n".join([doc.page_content for doc in docs]) if docs else "검색 결과 없음"
         web_results = search_for_nutrition_info(query, max_results=3)
-        context = f"[RAG 검색 결과]\n{rag_context}\n\n[웹 검색 결과]\n{web_results}"
+        context_parts.append(f"[RAG 검색 결과]\n{rag_context}")
+        context_parts.append(f"[웹 검색 결과]\n{web_results}")
         logger.info("✅ RAG + 웹 검색 결과 결합 완료")
 
-    return context
+    return "\n\n".join(context_parts)
 
 
 def get_context_for_summary(retriever, topic: str) -> str:

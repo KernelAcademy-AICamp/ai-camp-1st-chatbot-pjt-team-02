@@ -160,6 +160,7 @@ venv.bak/
 .conda
 .conda*/
 .conda_*/
+.conda-*/
 
 # Spyder project settings
 .spyderproject
