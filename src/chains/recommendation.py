@@ -45,7 +45,15 @@ def create_recommendation_chain(
 참고 자료:
 {{context}}
 
-재료명, 단백질, 나트륨, 칼륨, 인과 칼로리들을 나열하되, 각 재료는 줄바꿈으로 구분해주세요. 이때 용량은 mg으로 통일해주세요.
+**중요**: 재료명만 간단히 나열하고, 영양소 정보(단백질, 나트륨, 칼륨, 인, 칼로리)는 출력하지 마세요.
+각 재료는 줄바꿈으로 구분해주세요.
+
+출력 예시:
+김치
+돼지고기
+두부
+대파
+마늘
 
 {CKD_NUTRITION_GUIDELINES}"""),
         ("user", "요리명: {dish_name}")
@@ -83,15 +91,25 @@ def create_recommendation_chain(
 재료:
 {ingredients}
 
-위 재료들 중 신장 질환 환자에게 부담이 될 수 있는 재료와 대체재를 가장 부담이 되는 원본 재료 순으로 나열해서 추천해주세요.
-재료명, 단백질, 나트륨, 칼륨, 인과 칼로리들을 나열하되, 각 재료는 줄바꿈으로 구분해주세요. 이때 용량은 mg으로 통일해주세요.
-추천하는 대체제의 재료명, 단백질, 나트륨, 칼륨, 인과 칼로리들을 나열하되, 화살표로 대체된 항목을 표시합니다.""")
+위 재료들 중 신장 질환 환자에게 부담이 될 수 있는 재료(고칼륨/고인/고나트륨)를 찾아내고,
+각 재료별로 영양소 함량 정보와 함께 대체재를 추천해주세요.
+
+**출력 형식**:
+1. 고칼륨/고인 재료 분석
+   - 재료명: 영양소 정보 (나트륨/칼륨/인 함량)
+
+2. 추천 대체재
+   - 원재료 → 대체재: 영양소 감소 효과
+
+3. 조리 팁
+   - 칼륨/나트륨/인 감소를 위한 조리법""")
     ])
 
     def get_recommendation_context(inputs):
-        """추천을 위한 컨텍스트 검색"""
+        """추천을 위한 컨텍스트 검색 (MongoDB → RAG → 웹 검색)"""
         dish_name = inputs['dish_name']
-        context = get_context_for_recommendation(retriever, dish_name)
+        ingredients = inputs.get('ingredients', '')
+        context = get_context_for_recommendation(retriever, dish_name, ingredients)
         return {**inputs, "context": context}
 
     # 2단계: 최종 추천 체인
