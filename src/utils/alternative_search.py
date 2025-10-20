@@ -34,6 +34,7 @@ def search_alternatives_from_mongodb(
 
     result_lines = []
     total_found = 0
+    search_summary = []  # 검색 요약 로그용
 
     for ingredient in ingredients:
         # 재료명 전처리 (쉼표, 공백 등 제거)
@@ -44,13 +45,28 @@ def search_alternatives_from_mongodb(
 
         try:
             # MongoDB에서 대체재 검색
-            alternatives = mongo_client.find_alternatives(
+            alternatives_raw = mongo_client.find_alternatives(
                 ingredient=ingredient_clean,
                 nutrient_types=nutrient_priority,
-                limit=max_per_ingredient
+                limit=max_per_ingredient * 3  # 중복 제거를 위해 더 많이 가져옴
             )
 
+            # 대체재료 기준으로 중복 제거 (첫 번째로 발견된 것만 유지)
+            seen_replacements = set()
+            alternatives = []
+            for alt in alternatives_raw:
+                replacement = alt.get('대체재료', 'N/A')
+                if replacement not in seen_replacements:
+                    seen_replacements.add(replacement)
+                    alternatives.append(alt)
+                    if len(alternatives) >= max_per_ingredient:
+                        break
+
             if alternatives:
+                # 로그용 요약 (재료명 -> 대체재명 리스트)
+                alt_names = [alt.get('대체재료', 'N/A') for alt in alternatives]
+                search_summary.append(f"   {len(search_summary)+1}. {ingredient_clean} → {', '.join(alt_names)}")
+
                 result_lines.append(f"\n### 📌 '{ingredient_clean}' 대체재 ({len(alternatives)}개)")
 
                 for idx, alt in enumerate(alternatives, 1):
@@ -79,6 +95,10 @@ def search_alternatives_from_mongodb(
         except Exception as e:
             logger.warning(f"⚠️ '{ingredient_clean}' 검색 중 오류 발생: {e}")
             continue
+
+    # 검색 결과 요약 로그 출력
+    if search_summary:
+        logger.info(f"📋 1차 재료 검색 결과 ({total_found}개):\n" + "\n".join(search_summary))
 
     if total_found == 0:
         return ""

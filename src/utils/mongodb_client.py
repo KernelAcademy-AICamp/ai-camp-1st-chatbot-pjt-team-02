@@ -118,10 +118,10 @@ class MongoDBClient:
         try:
             # 감소비율 내림차순 정렬
             results = list(collection.find(query).sort("감소비율", -1).limit(limit))
-            logger.info(f"🔍 '{ingredient}' 대체재 검색: {len(results)}개 발견")
+            # 로그는 alternative_search.py에서 통합 출력하므로 여기서는 생략
             return results
         except Exception as e:
-            logger.error(f"❌ MongoDB 검색 실패: {e}")
+            logger.error(f"❌ MongoDB 검색 실패 ('{ingredient}'): {e}")
             return []
 
     def close(self):

@@ -91,10 +91,7 @@ def get_context_for_recommendation(retriever, dish_name: str, ingredients: str =
 
         if mongodb_results:
             context_parts.append(f"[MongoDB 대체재 검색 결과]\n{mongodb_results}")
-            # 결과 간단히 요약해서 출력
-            result_lines = mongodb_results.strip().split('\n')
-            result_summary = result_lines[0] if result_lines else "대체재 발견"
-            logger.info(f"✅ MongoDB 대체재 검색 완료: {result_summary[:80]}...")
+            logger.info("✅ MongoDB 대체재 검색 완료")
         else:
             logger.warning("⚠️ MongoDB에서 대체재를 찾지 못했습니다.")
     except Exception as e:
