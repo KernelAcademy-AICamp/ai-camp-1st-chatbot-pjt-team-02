@@ -102,19 +102,27 @@ class MongoDBClient:
         Returns:
             대체재 정보 리스트
         """
+        import re as regex_module
+
         collection = self.get_collection("alternatives")
 
+        # 정규식 특수문자 이스케이프 처리
+        escaped_ingredient = regex_module.escape(ingredient)
+
         # 쿼리 구성
-        query = {"원재료": {"$regex": ingredient, "$options": "i"}}  # 대소문자 무시 검색
+        query = {"원재료": {"$regex": escaped_ingredient, "$options": "i"}}  # 대소문자 무시 검색
 
         if nutrient_types:
             query["영양소종류"] = {"$in": nutrient_types}
 
-        # 감소비율 내림차순 정렬
-        results = list(collection.find(query).sort("감소비율", -1).limit(limit))
-
-        logger.info(f"🔍 '{ingredient}' 대체재 검색: {len(results)}개 발견")
-        return results
+        try:
+            # 감소비율 내림차순 정렬
+            results = list(collection.find(query).sort("감소비율", -1).limit(limit))
+            logger.info(f"🔍 '{ingredient}' 대체재 검색: {len(results)}개 발견")
+            return results
+        except Exception as e:
+            logger.error(f"❌ MongoDB 검색 실패: {e}")
+            return []
 
     def close(self):
         """MongoDB 연결 종료"""

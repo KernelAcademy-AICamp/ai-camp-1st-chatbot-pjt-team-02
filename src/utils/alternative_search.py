@@ -42,39 +42,43 @@ def search_alternatives_from_mongodb(
         if not ingredient_clean:
             continue
 
-        # MongoDB에서 대체재 검색
-        alternatives = mongo_client.find_alternatives(
-            ingredient=ingredient_clean,
-            nutrient_types=nutrient_priority,
-            limit=max_per_ingredient
-        )
+        try:
+            # MongoDB에서 대체재 검색
+            alternatives = mongo_client.find_alternatives(
+                ingredient=ingredient_clean,
+                nutrient_types=nutrient_priority,
+                limit=max_per_ingredient
+            )
 
-        if alternatives:
-            result_lines.append(f"\n### 📌 '{ingredient_clean}' 대체재 ({len(alternatives)}개)")
+            if alternatives:
+                result_lines.append(f"\n### 📌 '{ingredient_clean}' 대체재 ({len(alternatives)}개)")
 
-            for idx, alt in enumerate(alternatives, 1):
-                original = alt.get('원재료', 'N/A')
-                replacement = alt.get('대체재료', 'N/A')
-                nutrient_type = alt.get('영양소종류', 'N/A')
-                reduction_rate = alt.get('감소비율', 0)
-                note = alt.get('비고', '')
+                for idx, alt in enumerate(alternatives, 1):
+                    original = alt.get('원재료', 'N/A')
+                    replacement = alt.get('대체재료', 'N/A')
+                    nutrient_type = alt.get('영양소종류', 'N/A')
+                    reduction_rate = alt.get('감소비율', 0)
+                    note = alt.get('비고', '')
 
-                # 영양소 종류 한글 변환
-                nutrient_kr = {
-                    'sodium': '나트륨',
-                    'potassium': '칼륨',
-                    'phosphorus': '인',
-                    'protein': '단백질'
-                }.get(nutrient_type, nutrient_type)
+                    # 영양소 종류 한글 변환
+                    nutrient_kr = {
+                        'sodium': '나트륨',
+                        'potassium': '칼륨',
+                        'phosphorus': '인',
+                        'protein': '단백질'
+                    }.get(nutrient_type, nutrient_type)
 
-                result_lines.append(
-                    f"  {idx}. **{replacement}**\n"
-                    f"     - 감소 영양소: {nutrient_kr}\n"
-                    f"     - 감소율: {reduction_rate}%\n"
-                    f"     - 비고: {note}"
-                )
+                    result_lines.append(
+                        f"  {idx}. **{replacement}**\n"
+                        f"     - 감소 영양소: {nutrient_kr}\n"
+                        f"     - 감소율: {reduction_rate}%\n"
+                        f"     - 비고: {note}"
+                    )
 
-            total_found += len(alternatives)
+                total_found += len(alternatives)
+        except Exception as e:
+            logger.warning(f"⚠️ '{ingredient_clean}' 검색 중 오류 발생: {e}")
+            continue
 
     if total_found == 0:
         return ""
@@ -99,7 +103,8 @@ def extract_ingredients_from_text(text: str) -> List[str]:
     # 필터링할 설명문 키워드 (재료가 아닌 설명문 제거)
     skip_keywords = [
         '일반적으로', '다음과 같습니다', '재료는', '사용되는', '포함', '다음',
-        '아래', '입니다', '습니다', '해당', '것입니다', '있습니다', '필요합니다'
+        '아래', '입니다', '습니다', '해당', '것입니다', '있습니다', '필요합니다',
+        '단백질', '나트륨', '칼륨', '인 ', '칼로리', '영양소', '안전', '구간', '녹색', '빨간색', '노란색'
     ]
 
     # 패턴: "- 재료명" 또는 "재료명," 형태
@@ -107,18 +112,25 @@ def extract_ingredients_from_text(text: str) -> List[str]:
     ingredients = []
 
     for line in lines:
-        # 설명문 필터링 (키워드가 포함된 긴 문장 제외)
-        if any(keyword in line for keyword in skip_keywords) and len(line) > 15:
+        # 마크다운 강조 제거 (**, *, _)
+        line_clean = re.sub(r'[\*_]+', '', line)
+
+        # 콜론(:) 뒤의 영양소 수치 제거 (예: "돼지고기: 2000mg" → "돼지고기")
+        if ':' in line_clean:
+            line_clean = line_clean.split(':')[0].strip()
+
+        # 설명문 필터링 (키워드가 포함된 경우 제외)
+        if any(keyword in line_clean for keyword in skip_keywords):
             continue
 
         # "- " 또는 숫자. 형태 제거
-        cleaned = re.sub(r'^[\s\-\d\.]+', '', line).strip()
+        cleaned = re.sub(r'^[\s\-\d\.]+', '', line_clean).strip()
 
         # 괄호 안 내용 제거 (예: "김치 (100g)" → "김치")
         cleaned = re.sub(r'\([^)]*\)', '', cleaned).strip()
 
         # 숫자+단위 제거 (예: "김치 200g" → "김치")
-        cleaned = re.sub(r'\d+\s*(g|kg|ml|L|개|컵)', '', cleaned).strip()
+        cleaned = re.sub(r'\d+\s*(g|kg|ml|L|개|컵|mg|kcal)', '', cleaned).strip()
 
         # 쉼표로 분리된 경우
         parts = [p.strip() for p in cleaned.split(',') if p.strip()]
@@ -126,9 +138,10 @@ def extract_ingredients_from_text(text: str) -> List[str]:
         ingredients.extend(parts)
 
     # 중복 제거 및 빈 값 필터링 (길이가 1~20자인 것만 허용)
+    # 숫자만 있는 것 제외
     unique_ingredients = list(dict.fromkeys([
         ing for ing in ingredients
-        if ing and 1 < len(ing) <= 20
+        if ing and 1 < len(ing) <= 20 and not ing.isdigit()
     ]))
 
     return unique_ingredients
