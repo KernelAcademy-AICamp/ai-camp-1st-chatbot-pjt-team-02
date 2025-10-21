@@ -165,3 +165,5 @@ data/faiss_index/
 *.tmp
 *.bak
 .cache/
+
+.claude/
