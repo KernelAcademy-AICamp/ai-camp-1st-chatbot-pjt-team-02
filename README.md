@@ -1,322 +1,280 @@
-# 🥗 콩닥식탁 - 신장 투석 환자 맞춤형 식단 관리 챗봇
+# 🍲 콩닥식탁 - AI 기반 신장 투석 환자 맞춤형 식단 관리 챗봇
 
-신장 투석 환자를 위한 AI 기반 맞춤형 식단 관리 챗봇입니다. OpenAI GPT API와 RAG 기술을 활용하여 음식의 영양 성분을 분석하고, 안전한 대체 레시피를 제안합니다.
+[![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
+[![LangChain](https://img.shields.io/badge/LangChain-0.0.340-green)](https://python.langchain.com/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-orange)](https://openai.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)](https://www.mongodb.com/atlas)
 
-- **프로젝트 기간:** 2025.10.16 ~ 2025.10.22 (총 1주일)
-- **배포 방식:** Docker Compose (로컬 환경)
-- **프론트엔드:** http://localhost:8501
-- **백엔드 API:** http://localhost:8000/api/docs
+## 📋 프로젝트 개요
 
----
+**콩닥식탁**은 신장 투석 환자를 위한 AI 기반 맞춤형 식단 관리 챗봇입니다. RAG(Retrieval-Augmented Generation) 기술과 MongoDB를 활용하여 환자가 안전하게 즐길 수 있는 레시피와 대체 재료를 추천합니다.
 
-## 📌 주요 기능
-
-### 1️⃣ 요약 및 Q&A 자동생성 [필수]
-- **음식 영양 성분 분석**
-  - "떡볶이 먹어도 될까요?" 같은 자연어 질문
-  - LLM이 재료를 자동 추출 (떡, 고추장, 어묵, 파)
-  - PostgreSQL에서 영양 정보 조회 및 계산
-  - 나트륨, 칼륨, 인, 단백질, 칼로리 분석
-
-- **위험도 평가**
-  - 신장 환자 기준치 대비 평가 (🟢안전/🟡주의/🔴위험)
-  - 초과 영양소 자동 감지
-
-- **대체 레시피 제안**
-  - RAG 기반 식약처/대한신장학회 가이드라인 검색
-  - 저나트륨/저칼륨 대체 재료 추천
-  - 조리 팁 제공
-
-### 2️⃣ 맞춤형 퀴즈 생성 [필수]
-- **학습 강화 퀴즈**
-  - 객관식, 주관식, O/X 문제 자동 생성
-  - 위험도 높은 음식 질문 시 퀴즈 제안
-  - 정답/해설 즉시 피드백
-  - 정답률 추적
-
-### 3️⃣ 학습 자료 추천 [부가]
-- **신뢰할 수 있는 자료 검색**
-  - 식약처, 대한신장학회 등 공식 기관 자료
-  - 웹 크롤링 기반 최신 자료 수집
-  - 관련성 점수 평가 및 정렬
-
-## 🎬 사용 시나리오
-
-1. **채팅 탭**에서 "떡볶이 먹어도 될까요?" 질문
-2. AI가 재료 분석 → 영양소 계산 → 위험도 평가
-3. 나트륨 초과 경고 및 저염 레시피 제안
-4. "📝 퀴즈로 복습하기" 버튼 클릭
-5. **영양 분석 탭**에서 차트로 영양소 비율 확인
-6. **학습 자료 탭**에서 "저염식 레시피" 검색
-
----
-
-## **2. 활용 장비 및 협업 툴**
-
-### **2.1 활용 장비**
-- **개발 환경:** Windows 11 / macOS / Linux 기반 개인 PC
-- **서버 환경:** Local 환경 구동 (필요시 Docker 컨테이너 활용)
-
-### **2.2 협업 툴**
-- **소스 관리:** GitHub
-- **프로젝트 관리:** Notion, Jira
-- **커뮤니케이션:** Slack, Discord
-- **버전 관리:** Git
-
----
-
-## **3. 최종 선정 AI 모델 구조**
-- **모델 이름:** **OpenAI GPT-4o**, **Anthropic Claude 3** 등 (프로젝트에서 1종 이상 선택 활용)
-- **구조 및 설명:** 본 프로젝트는 사전 학습된 LLM을 API 형태로 호출하여 사용합니다. 모델을 직접 학습하는 대신, **프롬프트 엔지니어링**을 통해 각 기능(요약, Q&A, 문제 생성)에 최적화된 결과물을 얻도록 제어하는 데 중점을 둡니다.
-- **학습 데이터:** 사용자가 직접 입력하는 강의 노트, 기사, PDF 텍스트 등 비정형 데이터가 AI 모델의 주요 입력값으로 활용됩니다.
-- **평가 지표:** 기능 요구사항 충족 여부를 기준으로 하며, 생성된 결과물(요약, 질문, 문제 등)의 **정확성, 일관성, 유용성**을 정성적으로 평가합니다.
-
----
-
-## **4. 서비스 아키텍처**
-### **4.1 시스템 구조도**
-사용자 인터페이스(Streamlit)에서 입력을 받아 백엔드 서버(FastAPI)로 전달하고, 서버는 외부 LLM API와 통신하여 결과를 다시 사용자에게 보여주는 간단한 3-Tier 아키텍처를 따릅니다.
-```
-+------------------+      +---------------------+      +-----------------+
-|   User (Client)  | <--> |   Backend Server    | <--> |  External LLM   |
-| (Streamlit/Web)  |      | (FastAPI / Python)  |      | (OpenAI/Claude) |
-+------------------+      +---------------------+      +-----------------+
-```
-
-### **4.2 데이터 흐름도**
-1.  **사용자 입력:** 사용자가 UI를 통해 텍스트 문서를 입력합니다.
-2.  **백엔드 요청:** Frontend(Streamlit)는 입력된 텍스트를 Backend(FastAPI) API로 전송합니다.
-3.  **프롬프트 구성:** 백엔드는 사전에 설계된 프롬프트 템플릿에 사용자 텍스트를 결합합니다.
-4.  **LLM API 호출:** 완성된 프롬프트를 OpenAI 또는 Claude API로 전송합니다.
-5.  **결과 수신 및 파싱:** LLM이 생성한 응답(JSON, Bullet 형식)을 수신하여 파싱합니다.
-6.  **결과 반환:** 파싱된 데이터를 UI가 표현하기 좋은 형태로 가공하여 Frontend로 반환합니다.
-
----
-
-## **5. 사용 기술 스택**
-### **5.1 백엔드**
-- **Framework:** FastAPI (Python)
-- **LLM API:** OpenAI, Anthropic
-
-### **5.2 프론트엔드**
-- **Framework:** Streamlit
-
-### **5.3 머신러닝 및 데이터 분석**
-- **LLM Libraries:** `openai`, `anthropic`
-- **Data Handling:** `pandas` (필요시)
-
-### **5.4 배포 및 운영**
-- **Runtime Environment:** Python 3.9+
-- **Containerization:** Docker (선택 사항)
-
----
-
-## **6. 팀원 소개**
-
-
-| ![박커널](https://avatars.githubusercontent.com/u/156163982?v=4) | ![이커널](https://avatars.githubusercontent.com/u/156163982?v=4) | ![최커널](https://avatars.githubusercontent.com/u/156163982?v=4) | ![김커널](https://avatars.githubusercontent.com/u/156163982?v=4) | 
-| :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | :--------------------------------------------------------------: | 
-|            [박커널](https://github.com/)             |            [이커널](https://github.com/)             |            [최커널](https://github.com/)             |            [김커널](https://github.com/)             |   
-
----
-
-## **7. Appendix**
-### **7.1 참고 자료**
-- **API 문서:** [OpenAI API Reference](https://platform.openai.com/docs/api-reference), [Anthropic API Documentation](https://docs.anthropic.com/claude/reference/getting-started-with-the-api)
-- **프레임워크:** [FastAPI 공식 문서](https://fastapi.tiangolo.com/), [Streamlit 공식 문서](https://docs.streamlit.io/)
-- **프롬프트 가이드:** [OpenAI Prompt Engineering Guide](https://platform.openai.com/docs/guides/prompt-engineering)
+### 주요 특징
+- 🎯 **맞춤형 대체재 추천**: MongoDB 기반 5만개 이상의 검증된 대체 재료 데이터베이스
+- 📊 **영양 성분 분석**: 나트륨, 칼륨, 인, 단백질 자동 계산
+- 🤖 **RAG 시스템**: 식약처/대한신장학회 PDF 학습 기반 정확한 정보 제공
+- 📝 **LangGraph 워크플로우**: 자동 의도 분류 및 적절한 처리 체인 선택
 
 ## 🚀 빠른 시작
 
-<<<<<<< HEAD
 ### 1. 환경 설정
-=======
-2.  **가상환경 생성 및 활성화:**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # Windows: venv\Scripts\activate
-    ```
-    ```bash ( 로컬 )
-    conda create --prefix 환경이름 python=3.11
-    conda env remove --prefix 환경이름  OR 그냥 지움
-    conda activate 환경이름
-    conda deactivate
-    conda env list
-    conda list   # 현재 환경의 패키지 목록 확인
-    ```
->>>>>>> origin/main
-
 ```bash
-# 1. Repository 클론
+# 저장소 클론
 git clone https://github.com/KernelAcademy-AICamp/ai-camp-1st-chatbot-pjt-team-02.git
-cd ChatBot
+cd ai-camp-1st-chatbot-pjt-team-02
 
-# 2. 환경 변수 설정
-cp .env.example .env
+# Conda 환경 생성 (Python 3.11)
+conda create --prefix .conda_chatbot python=3.11
+conda activate ./.conda_chatbot
 
-### **7.3 Git 워크플로우**
-**푸시 전 필수 규칙: 항상 Pull → 충돌 체크 → Commit → Push**
-**커밋 메시지는 한글로 작성**
-**LLM 에 커밋하고 푸쉬해라고 명령함**
-
-```bash
-# 1. 원격 저장소에서 최신 변경사항 가져오기 (충돌 체크)
-git pull origin main
-
-# 2. 변경사항 스테이징
-git add .
-
-# 3. 커밋
-git commit -m "커밋 메시지"
-
-# 4. 푸시
-git push origin main
+# 패키지 설치
+pip install -r requirements.txt
 ```
 
-**충돌 발생 시 해결 방법:**
+### 2. 환경 변수 설정
+`.env` 파일 생성:
 ```bash
-# 충돌 파일 확인
-git status
+# OpenAI
+OPENAI_API_KEY=your-openai-api-key
 
-# 충돌 수동 해결 후
-git add .
-git commit -m "Resolve merge conflicts"
-git push origin main
+# MongoDB Atlas
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/
+
+# 선택사항
+ANTHROPIC_API_KEY=your-anthropic-key  # Claude 사용 시
+TAVILY_API_KEY=your-tavily-key  # 웹 검색 사용 시
 ```
 
-### **7.4 주요 커밋 기록 및 업데이트 내역**
-
-### 2. 데이터 초기화 (최초 1회)
-
-**중요**: 이 프로젝트는 국가표준식품성분표 엑셀 파일에서 데이터를 읽어 PostgreSQL과 FAISS에 로드합니다.
-
+### 3. MongoDB 대체재 데이터 업로드
 ```bash
-# 자동 초기화 (권장)
-cd scripts
-./initialize_data.sh
-
-# 수동 초기화
-python3 scripts/load_excel_to_db.py         # 1. 국가표준식품성분표 → DB
-python3 scripts/load_pdfs_to_faiss.py       # 2. FAISS 로드 (선택)
+# MongoDB에 대체재 데이터 업로드
+python scripts/upload_alternatives_to_mongodb.py
 ```
 
-**필수 데이터 파일:**
-- `Documents/Data/국가표준식품성분표_250426공개.xlsx` - **필수** (1000+ 식품 영양 정보)
-- `Documents/Data/alternatives.xlsx` - 선택 (대체 재료 매핑, 직접 작성)
-- `Documents/Data/*.pdf` - 선택 (RAG용 참고 문서)
-
-자세한 내용: [DATA_INITIALIZATION.md](Documents/Data생성설명/DATA_INITIALIZATION.md)
-
-### 3. 실행 방법
-
-#### 방법 A: 자동 실행 스크립트 (권장)
+### 4. Jupyter Notebook 실행
 ```bash
-# macOS/Linux
-./start.sh
+# Jupyter 서버 시작 (출력 제한 해제)
+cd tutorial
+./start_jupyter_no_limit.sh
 
-# Windows (Git Bash)
-bash start.sh
+# 또는 일반 실행
+jupyter notebook
 ```
-
-#### 방법 B: Docker Compose 직접 실행
-```bash
-# 컨테이너 시작
-docker-compose up -d
-
-# 로그 확인
-docker-compose logs -f
-
-# 종료
-docker-compose down
-```
-
-### 4. 접속 확인
-
-- **프론트엔드 (Streamlit)**: http://localhost:8501
-- **백엔드 API 문서**: http://localhost:8000/api/docs
-- **PostgreSQL**: localhost:5432 (postgres/kongdak_db)
 
 ## 📁 프로젝트 구조
 
 ```
-ChatBot/
-├── backend/                 # FastAPI 백엔드
-│   ├── app/
-│   │   ├── main.py         # FastAPI 메인
-│   │   ├── config.py       # 환경 설정
-│   │   ├── models/         # DB 모델 & 스키마
-│   │   ├── services/       # 비즈니스 로직
-│   │   │   ├── llm_service.py      # OpenAI API
-│   │   │   ├── rag_service.py      # FAISS RAG
-│   │   │   ├── nutrition.py        # 영양 분석
-│   │   │   └── scraper.py          # 웹 크롤링
-│   │   ├── routers/        # API 라우터
-│   │   └── utils/          # 프롬프트 관리
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/                # Streamlit 프론트엔드
-│   ├── app.py              # 메인 UI
-│   ├── Dockerfile
-│   └── requirements.txt
-├── database/                # DB 초기화
-│   └── init.sql            # 테이블 스키마 (데이터는 엑셀에서 로드)
-├── scripts/                 # 데이터 로딩 스크립트 ⭐
-│   ├── load_excel_to_db.py         # 국가표준식품성분표 → PostgreSQL
-│   ├── load_pdfs_to_faiss.py       # PDF → FAISS
-│   ├── initialize_data.sh          # 통합 실행 스크립트
-│   └── requirements.txt            # 스크립트 의존성
-├── Documents/               # 학습 자료
-│   ├── Data/               # 데이터 파일 ⭐
-│   │   ├── 국가표준식품성분표_250426공개.xlsx  # 식품 영양 정보 (필수)
-│   │   ├── alternatives.xlsx      # 대체 재료 매핑 (선택)
-│   │   └── *.pdf                  # RAG용 참고 문서 (선택)
-│   └── kongdak_prd.md      # 프로젝트 요구사항
-├── docker-compose.yml       # Docker 오케스트레이션
+ChatBot_Jehun/
+├── src/                      # 핵심 소스 코드
+│   ├── rag/                 # RAG 시스템
+│   │   ├── rag_setup.py    # 벡터스토어 설정
+│   │   └── retriever.py    # 문서 검색
+│   └── utils/               # 유틸리티
+│       ├── alternative_search.py  # MongoDB 대체재 검색 ⭐
+│       ├── mongodb_client.py      # MongoDB 연결
+│       └── web_search.py         # 웹 검색 (Tavily)
+│
+├── tutorial/                # 실습 및 테스트
+│   ├── tutorial_rag.ipynb # 메인 실습 노트북 ⭐
+│   ├── start_jupyter_no_limit.sh  # Jupyter 실행 스크립트
+│   └── test_mongodb_output.py     # MongoDB 테스트
+│
+├── scripts/                 # 데이터 관리 스크립트
+│   └── upload_alternatives_to_mongodb.py  # MongoDB 업로드
+│
+├── data/                    # 데이터 저장소
+│   ├── pdf/                # 학습용 PDF 문서
+│   ├── vectorstore/        # FAISS 벡터 DB
+│   └── alternatives/       # 대체재 엑셀 데이터
+│
 ├── .env.example            # 환경 변수 템플릿
-├── start.sh                # 실행 스크립트
-├── DATA_INITIALIZATION.md   # 데이터 초기화 가이드 ⭐
-├── DEMO.md                 # 시연 가이드
-├── TASK_LIST.md            # 작업 목록
-└── CLAUDE.md               # Claude Code 가이드
+├── requirements.txt        # 패키지 의존성
+├── CLAUDE.md              # Claude Code 가이드
+└── README.md              # 프로젝트 문서
 ```
 
-## 📝 시연 가이드
+## 💻 주요 기능 상세
 
-자세한 시연 방법은 [DEMO.md](DEMO.md)를 참조하세요.
+### 1. MongoDB 대체재 검색 시스템
+```python
+# src/utils/alternative_search.py
+search_alternatives_from_mongodb(
+    ingredients=['김치', '돼지고기'],  # 검색할 재료
+    max_per_ingredient=3              # 재료당 최대 대체재 수
+)
+```
+- **국가표준식품성분표 기반 53,871개 대체재 데이터**
+- 영양소별 감소율 자동 계산 (나트륨, 칼륨, 인, 단백질)
+- 실시간 검색 및 캐싱
+- context 최상단에 배치하여 LLM 우선 참조
 
-### 시연 시나리오 요약
-1. **떡볶이 질문** → 나트륨 초과 경고 → 저염 레시피 제안
-2. **퀴즈 생성** → 문제 풀기 → 정답 확인
-3. **자료 검색** → 신뢰할 수 있는 기관 자료 추천
+### 2. RAG 시스템 (PDF 학습)
+```python
+# src/rag/rag_setup.py
+rag_setup = RAGSetup(
+    pdf_directory="data/pdf",
+    vectorstore_path="data/vectorstore",
+    chunk_size=300
+)
+vectorstore = rag_setup.setup_rag()
+```
+- 식약처, 대한신장학회 공식 PDF 문서 학습
+- FAISS 벡터 DB로 빠른 검색
+- OpenAI Embeddings 활용
+- 문서 부족 시 웹 검색 Fallback
 
-## ⚠️ 주의사항
+### 3. LangGraph 워크플로우
+```python
+# tutorial/tutorial_rag.ipynb - cell-17~19
+workflow = StateGraph(WorkflowState)
+workflow.add_node("classifier", classify_intent)
+workflow.add_node("recommendation", run_recommendation)
+workflow.add_node("summary", run_summary)
+workflow.add_node("quiz", run_quiz)
+```
+- **자동 의도 분류**: 추천/요약/퀴즈 자동 라우팅
+- **체인별 독립 실행**: 각 기능별 최적화된 처리
+- **상태 관리**: 워크플로우 상태 추적
 
-### 필수 설정
-- **OpenAI API Key**: `.env` 파일에 반드시 설정 필요
-- **Docker**: Docker Desktop 실행 필수
-- **포트**: 5432(PostgreSQL), 8000(Backend), 8501(Frontend) 사용 가능 확인
+## 📊 영양소 제한 기준
 
-### 트러블슈팅
+### 신장 투석 환자 일일 권장량
+| 영양소 | 투석 전 | 투석 중 | 단위 |
+|-------|---------|---------|------|
+| 단백질 | 0.6-0.8 | 1.2-1.3 | g/kg |
+| 나트륨 | < 5 | < 6 | g/일 |
+| 칼륨 | < 2000 | < 2000 | mg/일 |
+| 인 | < 800 | < 1000 | mg/일 |
+
+### 위험도 평가 기준 (100g 기준)
+- 🟢 **녹색** (안전): 칼륨 < 200mg, 인 < 100mg, 나트륨 < 100mg
+- 🟡 **노란색** (주의): 칼륨 200-400mg, 인 100-200mg, 나트륨 100-500mg
+- 🔴 **빨간색** (위험): 칼륨 > 400mg, 인 > 200mg, 나트륨 > 500mg
+
+## 🧪 테스트 실행
+
+### Jupyter Notebook 실습
+1. `tutorial/tutorial_rag.ipynb` 열기
+2. 순차적으로 셀 실행:
+
+| 셀 번호 | 기능 | 설명 |
+|--------|------|------|
+| cell-3 | 환경 설정 | 프로젝트 경로 및 환경변수 로드 |
+| cell-4 | 출력 설정 | Jupyter 출력 200줄 제한 해제 |
+| cell-6 | RAG 초기화 | FAISS 벡터스토어 로드/생성 |
+| cell-7 | 재료 추출 | 요리명 → 재료 및 영양 분석 |
+| **cell-8** | **MongoDB 통합** | **대체재 검색 + RAG + 웹 검색** ⭐ |
+| cell-11 | 디버깅 | MongoDB 결과 확인용 |
+| cell-12~14 | 요약/퀴즈 | 요약 및 퀴즈 생성 체인 |
+| cell-17~19 | LangGraph | 워크플로우 구성 및 컴파일 |
+| cell-23 | 통합 테스트 | 전체 워크플로우 테스트 |
+
+### 테스트 스크립트
 ```bash
-# 백엔드 연결 실패 시
-docker-compose logs backend
+# MongoDB 출력 테스트
+python tutorial/test_mongodb_output.py
 
-# PostgreSQL 연결 확인
-docker-compose exec postgres psql -U postgres -d kongdak_db
-
-# 전체 재시작
-docker-compose down -v
-docker-compose up -d
+# 결과는 mongodb_results.txt 파일로도 저장됨
 ```
 
-## 📚 추가 문서
+## 🔧 문제 해결
 
-- **[DATA_INITIALIZATION.md](Documents/Data생성설명/DATA_INITIALIZATION.md)**: 데이터 초기화 상세 가이드 ⭐
-- **[CLAUDE.md](CLAUDE.md)**: Claude Code 작업 가이드
-- **[TASK_LIST.md](TASK_LIST.md)**: 상세 작업 리스트
-- **[DEMO.md](DEMO.md)**: 시연 가이드
-- **[Documents/kongdak_prd.md](Documents/kongdak_prd.md)**: 상세 PRD
+### Jupyter 출력이 잘릴 때
+```bash
+# 출력 제한 없이 Jupyter 실행
+./tutorial/start_jupyter_no_limit.sh
 
-## 🏆 팀원 소개
+# 또는 수동 설정
+jupyter notebook --NotebookApp.iopub_data_rate_limit=1e10 --NotebookApp.iopub_msg_rate_limit=1e10
 
-Team 02 - 콩닥식탁 개발팀
+# VSCode 사용 시: .vscode/settings.json에 설정 포함됨
+```
+
+### MongoDB 연결 실패
+```python
+# .env 파일 확인
+MONGODB_URI=mongodb+srv://...
+
+# 연결 테스트
+from src.utils.mongodb_client import get_mongodb_client
+client = get_mongodb_client()
+```
+
+### RAG 검색 결과 부족
+```python
+# 벡터스토어 재구축
+rag_setup.setup_rag(force_rebuild=True)
+```
+
+### 디버깅 방법
+```python
+# cell-10에 ipdb 브레이크포인트 설정됨
+# VSCode: 줄 번호 클릭 → Debug Cell 실행
+# 단축키: F10(다음 줄), F11(함수 진입), F5(계속)
+```
+
+## 📚 학습 데이터
+
+### PDF 문서 (data/pdf/)
+- 2권_혈액투석_환자를_위한_영양-식생활_관리.pdf
+- 대한신장학회_혈액투석_질환식_식단_레시피_가이드.pdf
+- 식약처_나트륨줄이기자료집.pdf
+- 식약처_삼삼한밥상7.pdf
+- 신장질환_식품교환표-식사요법.pdf
+
+### 대체재 데이터 (data/alternatives/)
+- 국가표준식품성분표_기반_대체재.xlsx (53,871개)
+- 영양소별 감소율 계산 포함
+
+## 🎬 시연 시나리오
+
+1. **채팅 예시**: "김치찌개 먹어도 될까요?"
+   - 재료 자동 추출: 김치, 돼지고기, 두부 등
+   - MongoDB에서 대체재 검색
+   - 영양 분석 및 위험도 평가
+   - 저나트륨 대체 레시피 제안
+
+2. **워크플로우 테스트** (cell-23)
+   - "된장찌개 만들 때 저칼륨 재료로 대체할 수 있는 게 뭐야?"
+   - "혈액투석 환자의 식사 관리 주의사항 요약해줘"
+   - "저염식에 대한 퀴즈 3개 만들어줘"
+
+## 🤝 기여 방법
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📝 Git 워크플로우
+
+```bash
+# 푸시 전 필수 규칙: Pull → 충돌 체크 → Commit → Push
+git pull origin kimunsuk
+git add .
+git commit -m "변경 내용 설명"
+git push origin kimunsuk
+```
+
+## 👥 팀 정보
+
+**AI Camp 1기 ChatBot Project Team 02**
+- 프로젝트 기간: 2025.10.16 ~ 2025.10.22
+- 개발 브랜치: kimunsuk
+- GitHub: [ai-camp-1st-chatbot-pjt-team-02](https://github.com/KernelAcademy-AICamp/ai-camp-1st-chatbot-pjt-team-02)
+
+## 📚 참고 문서
+
+### API 문서
+- [OpenAI API](https://platform.openai.com/docs)
+- [LangChain 문서](https://python.langchain.com/)
+- [MongoDB Atlas](https://www.mongodb.com/atlas)
+
+### 의료 정보
+- [대한신장학회](https://www.ksn.or.kr/)
+- [식품의약품안전처](https://www.mfds.go.kr/)
+- [국가표준식품성분표](https://various.foodsafetykorea.go.kr/nutrient/)
+
+---
+*본 프로젝트는 FastCampus AI Camp 1기 과정의 일환으로 개발되었습니다.*
