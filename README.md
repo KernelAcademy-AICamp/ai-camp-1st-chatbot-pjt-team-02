@@ -22,10 +22,31 @@
 # 저장소 클론
 git clone https://github.com/KernelAcademy-AICamp/ai-camp-1st-chatbot-pjt-team-02.git
 cd ai-camp-1st-chatbot-pjt-team-02
+```
 
+#### 옵션 A: Conda 환경 (권장)
+```bash
 # Conda 환경 생성 (Python 3.11)
 conda create --prefix .conda_chatbot python=3.11
 conda activate ./.conda_chatbot
+
+# 패키지 설치
+pip install -r requirements.txt
+```
+
+#### 옵션 B: venv 환경
+```bash
+# Python 3.11이 설치되어 있는지 확인
+python3.11 --version
+
+# venv 가상환경 생성
+python3.11 -m venv venv
+
+# 가상환경 활성화
+# Linux/Mac:
+source venv/bin/activate
+# Windows:
+venv\Scripts\activate
 
 # 패키지 설치
 pip install -r requirements.txt
