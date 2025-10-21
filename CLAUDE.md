@@ -4,307 +4,419 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-이 프로젝트는 **신장질환(CKD) 환자를 위한 LLM 기반 영양 관리 챗봇**입니다. RAG(Retrieval-Augmented Generation)와 LangGraph를 활용하여 맞춤형 영양 정보 제공, 조리법 요약, 학습 문제 생성, 식재료 대체재 추천 기능을 제공합니다.
+**콩닥식탁** - 신장 투석 환자를 위한 AI 기반 맞춤형 식단 관리 챗봇
 
-- **프로젝트 기간**: 2025.10.16 ~ 2025.10.22 (1주)
-- **핵심 기술**: LangChain, LangGraph, OpenAI API, FAISS, RAG
-- **특화 영역**: 신장질환 환자를 위한 저칼륨/저나트륨/저인 식단 관리
+이 프로젝트는 OpenAI GPT API와 RAG(Retrieval-Augmented Generation) 기술을 활용하여 신장 투석 환자가 안전하게 즐길 수 있는 맞춤형 레시피와 식단 가이드를 제공합니다.
 
-## 핵심 명령어
+## 기술 스택
 
-### 개발 환경 설정
+### 백엔드
+- **Framework**: FastAPI (비동기 처리)
+- **Language**: Python 3.9+ (Conda 환경)
+- **LLM**: OpenAI API (GPT-3.5-turbo/GPT-4)
+- **Database**: PostgreSQL 15 (Docker Container)
+- **Vector DB**: FAISS (RAG 시스템)
 
-```bash
-# Conda 가상환경 생성 및 활성화
-conda create --prefix ./venv python=3.11
-conda activate ./venv
+### 프론트엔드
+- **Framework**: Streamlit
+- **UI Components**: streamlit-chat, plotly, streamlit-aggrid
 
-# 의존성 설치
-pip install -r requirements.txt
+### 주요 라이브러리
+- **RAG System**: LangChain, OpenAI Embeddings
+- **PDF Processing**: PyPDFLoader
+- **Data Processing**: Pandas, NumPy
+- **Web Scraping**: BeautifulSoup4, Selenium
+- **Environment**: python-dotenv
 
-# 환경변수 설정 (.env 파일 생성)
-cp .env.example .env
-# .env 파일에 OPENAI_API_KEY, TAVILY_API_KEY 등 설정
+## 시스템 아키텍처
+
+### 3-Tier 아키텍처
 ```
-
-### RAG 시스템 초기화
-
-```bash
-# 벡터스토어 생성/재생성
-python -c "from src.rag.rag_setup import RAGSetup; rag = RAGSetup(); rag.setup_rag(force_rebuild=True)"
-
-# 기존 벡터스토어 로드
-python -c "from src.rag.rag_setup import RAGSetup; rag = RAGSetup(); rag.setup_rag(force_rebuild=False)"
-```
-
-### 테스트 실행
-
-```bash
-# 통합 워크플로우 테스트 (4가지 시나리오)
-python test_modularized.py
-
-# 개별 체인 테스트
-python -c "from src.chains import create_intent_classifier; clf = create_intent_classifier(); print(clf.invoke({'query': '김치찌개 재료 추천해줘'}))"
-```
-
-### FastAPI 백엔드 실행 (향후 구축)
-
-```bash
-cd src/backend
-uvicorn main:app --reload --port 8000
-```
-
-### Streamlit 프론트엔드 실행 (향후 구축)
-
-```bash
-cd streamlit_app
-streamlit run main.py
-```
-
-## 아키텍처 개요
-
-### 디렉토리 구조
-
-```
-ChatBot_Jehun/
-├── src/
-│   ├── chains/              # LangChain 체인들
-│   │   ├── common.py        # LLM 초기화, 컨텍스트 검색
-│   │   ├── intent_classifier.py  # 의도 분류 (recommendation/summary/quiz)
-│   │   ├── summary.py       # 조리법 요약 + Q&A 생성
-│   │   ├── quiz.py          # 문제 생성 (객관식 2개, 주관식 1개)
-│   │   └── recommendation.py # 재료 대체재 추천
-│   ├── rag/
-│   │   ├── rag_setup.py     # PDF → 벡터스토어 초기화
-│   │   └── retriever.py     # 문서 검색 (basic/mmr/compression)
-│   ├── workflow/
-│   │   └── workflow.py      # LangGraph 워크플로우 (조건부 라우팅)
-│   └── utils/
-│       └── web_search.py    # Tavily 웹 검색 (RAG Fallback)
-├── data/
-│   ├── pdf/                 # 입력 PDF 문서
-│   ├── preprocess/          # 전처리된 CSV (식품/레시피)
-│   └── vectorstore/         # FAISS 벡터스토어
-└── test_modularized.py      # 통합 테스트 스크립트
+Frontend (Streamlit) ↔ Backend (FastAPI) ↔ LLM API (OpenAI)
+                              ↓
+                    PostgreSQL + FAISS
 ```
 
 ### 데이터 흐름
+1. 사용자가 Streamlit UI에서 "떡볶이 먹어도 될까요?" 같은 질문 입력
+2. FastAPI 백엔드가 LLM을 통해 레시피 재료 분석
+3. PostgreSQL에서 재료별 영양 성분 조회 및 계산
+4. 위험도 평가 후 RAG 시스템(FAISS)에서 대체 재료/조리법 검색
+5. LLM이 최종 답변 생성 (영양 분석 + 대체 레시피 + 조리 팁)
+6. Streamlit UI에 결과 시각화 (차트, 위험도 표시)
+
+## 핵심 기능
+
+### 1순위: 요약 및 Q&A 자동생성 [필수]
+- 요리 정보 분석 및 영양 성분 계산
+- 맞춤형 대체 재료 추천 (고칼륨 → 저칼륨)
+- RAG 기반 조리법 요약 (식약처/대한신장학회 PDF 학습)
+
+### 2순위: 과제/시험 문제 생성 [필수]
+- 퀴즈 생성 시스템 (객관식, 주관식, O/X)
+- 학습 효과 추적 및 오답 노트
+
+### 3순위: 자료 추천 서비스 [부가]
+- 웹 크롤링 기반 관련 자료 수집
+- 신뢰도 검증 및 관련성 평가
+
+## 데이터 초기화 (중요!)
+
+**⚠️ 이 프로젝트는 국가표준식품성분표 엑셀 파일에서 데이터를 읽어 DB에 로드합니다.**
+
+### 빠른 시작
+```bash
+# 1. 데이터 초기화 (최초 1회 필수)
+cd scripts
+./initialize_data.sh
+
+# 위 스크립트가 다음을 자동 실행:
+# - 국가표준식품성분표 → PostgreSQL 로드
+# - alternatives.xlsx → PostgreSQL 로드 (있는 경우)
+# - PDF 문서 → FAISS 로드 (있는 경우)
+```
+
+### 필수 데이터 파일
+- `Documents/Data/국가표준식품성분표_250426공개.xlsx` - **필수** (1000+ 식품 영양 정보)
+- `Documents/Data/alternatives.xlsx` - 선택 (대체 재료 매핑, 직접 작성)
+- `Documents/Data/*.pdf` - 선택 (RAG용 참고 문서)
+
+### 수동 실행
+```bash
+python3 scripts/load_excel_to_db.py         # 국가표준식품성분표 + alternatives → DB
+python3 scripts/load_pdfs_to_faiss.py       # PDF → FAISS (선택)
+```
+
+**참고**:
+- `database/init.sql`은 테이블 스키마만 정의
+- 실제 데이터는 국가표준식품성분표에서 자동 로드
+- 컬럼 매핑은 스크립트가 자동 처리
+
+자세한 내용: [DATA_INITIALIZATION.md](Documents/Data생성설명/DATA_INITIALIZATION.md)
+
+## 데이터베이스 스키마
+
+### 주요 테이블
+- **foods**: 식품 영양 정보 (나트륨, 칼륨, 인, 단백질, 칼로리)
+- **alternatives**: 대체 재료 매핑
+- **user_queries**: 사용자 대화 기록 (JSONB로 영양 정보 저장)
+- **quiz_history**: 퀴즈 기록 및 정답률 추적
+- **recommended_resources**: 추천 자료 캐시
+
+### 성능 최적화
+- `foods.name`에 인덱스 생성
+- 다중 재료 검색 시 `IN` 절 사용
+- 배치 INSERT로 성능 향상 (psycopg2.extras.execute_batch)
+
+## 프로젝트 구조
 
 ```
-사용자 쿼리
-    ↓
-[의도 분류] (intent_classifier)
-    ↓
-┌──────────────┬──────────────┬──────────────┐
-│Recommendation│   Summary    │    Quiz      │
-│(재료 대체제) │(조리법/주의) │(문제 생성)   │
-└──────┬───────┴──────┬───────┴──────┬───────┘
-       ↓              ↓              ↓
-   [RAG 검색] + [웹 검색 Fallback]
-       ↓              ↓              ↓
-   [LLM 처리] (각 체인별 프롬프트)
-       ↓              ↓              ↓
-   [결과 반환]
+ChatBot/
+├── backend/
+│   ├── app/
+│   │   ├── main.py              # FastAPI 메인
+│   │   ├── config.py            # 환경 설정
+│   │   ├── models/
+│   │   │   ├── database.py      # DB 모델
+│   │   │   └── schemas.py       # Pydantic 스키마
+│   │   ├── services/
+│   │   │   ├── llm_service.py   # LLM 연동
+│   │   │   ├── rag_service.py   # RAG 시스템
+│   │   │   ├── nutrition.py     # 영양 분석
+│   │   │   └── scraper.py       # 웹 크롤링
+│   │   ├── routers/
+│   │   │   ├── chat.py          # 채팅 API
+│   │   │   ├── quiz.py          # 퀴즈 API
+│   │   │   ├── nutrition.py     # 영양 검색 API
+│   │   │   └── resources.py     # 자료 추천 API
+│   │   └── utils/
+│   │       └── prompts.py       # 프롬프트 관리
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
+│   ├── app.py                   # Streamlit 메인
+│   ├── requirements.txt
+│   └── Dockerfile
+├── database/
+│   └── init.sql                 # DB 스키마 (데이터는 엑셀에서 로드)
+├── scripts/                     # ⭐ 데이터 로딩 스크립트
+│   ├── load_excel_to_db.py      # 국가표준식품성분표 → PostgreSQL
+│   ├── load_pdfs_to_faiss.py    # PDF → FAISS
+│   ├── initialize_data.sh       # 통합 실행
+│   └── requirements.txt
+├── Documents/
+│   ├── Data/                    # ⭐ 데이터 파일
+│   │   ├── 국가표준식품성분표_250426공개.xlsx  # 식품 영양 정보 (필수)
+│   │   ├── alternatives.xlsx    # 대체 재료 매핑 (선택)
+│   │   └── *.pdf                # RAG용 참고 문서 (선택)
+│   ├── kongdak_prd.md           # 상세 PRD
+│   └── kongdak-참조소스.py      # 참조 구현 코드
+├── docker-compose.yml           # Docker 오케스트레이션
+├── .env.example                 # 환경 변수 템플릿
+├── DATA_INITIALIZATION.md       # 데이터 초기화 가이드
+└── README.md
 ```
 
-**조건부 라우팅 특징**:
-- `recommendation` → 필요시 `summary` 추가 (LLM이 `need_summary` 플래그 판단)
-- `summary`, `quiz` → 직접 종료
+## 개발 환경 설정
 
-### RAG 시스템
+### 필수 환경변수 (.env)
+```bash
+# OpenAI
+OPENAI_API_KEY=your-openai-api-key
 
-**벡터스토어**: FAISS (CPU 기반)
-**임베딩 모델**: OpenAI `text-embedding-3-small`
-**청크 설정**: `chunk_size=300`, `chunk_overlap=30` (기본값은 1000/200)
+# PostgreSQL
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=kongdak_db
+DB_USER=postgres
+DB_PASSWORD=your-password
+```
 
-**3가지 검색 모드**:
-- `basic`: 유사도 검색
-- `mmr`: Maximum Marginal Relevance (다양성 고려)
-- `compression`: LLM 기반 압축 검색
+### Docker로 PostgreSQL 실행
+```bash
+docker run -d \
+  --name kongdak_postgres \
+  -e POSTGRES_DB=kongdak_db \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=your-password \
+  -p 5432:5432 \
+  -v postgres_data:/var/lib/postgresql/data \
+  postgres:15
+```
 
-**Fallback 메커니즘**:
-- RAG 결과 부족 → Tavily 웹 검색 자동 보충
+### Streamlit 실행
+```bash
+streamlit run frontend/app.py
+```
 
-### LangGraph 워크플로우
+### FastAPI 실행
+```bash
+uvicorn backend.app.main:app --reload --port 8000
+```
 
-**상태 정의** (`WorkflowState`):
+## 영양소 제한 기준
+
+신장 투석 환자 기준치 (1끼 기준):
+- **나트륨**: 650mg
+- **칼륨**: 650mg
+- **인**: 330mg
+- **단백질**: 40g
+
+## 프롬프트 엔지니어링 전략
+
+### 시스템 프롬프트
 ```python
-- query (필수): 사용자 입력
-- intent: 의도 분류 결과
-- recommendation_result: 추천 결과
-- final_result: 최종 결과
-- need_summary: 요약 필요 여부 (LLM 판단)
+SYSTEM_PROMPT = """
+당신은 신장 투석 환자를 위한 전문 영양 상담 AI입니다.
+역할:
+1. 요리의 영양 성분을 정확히 분석
+2. 신장 환자 기준치와 비교하여 위험도 평가
+3. 안전한 대체 재료 제안
+4. 친근하고 이해하기 쉬운 설명
+
+답변 형식:
+1. 영양 분석 결과 (이모지 활용)
+2. 위험도 평가 (🟢안전/🟡주의/🔴위험)
+3. 대체 레시피 제안
+4. 조리 팁
+"""
 ```
 
-**노드 구조**:
-```
-classifier → route_intent →
-├─ recommendation → route_after_recommendation →
-│   ├─ summary → END
-│   └─ END
-├─ summary → END
-└─ quiz → END
-```
+### Few-shot 학습 예시
+답변 일관성을 위해 `utils/prompts.py`에 예시 Q&A 저장
 
-## 코딩 컨벤션 및 패턴
+## API 엔드포인트
 
-### 체인 생성 패턴
-
-모든 체인은 다음 패턴을 따릅니다:
-
+### 채팅 API
 ```python
-def create_[chain_name]_chain(
-    retriever,  # RAG retriever (필요시)
-    model: str = "gpt-4o-mini",
-    temperature: float = 0.7,
-    max_tokens: Optional[int] = None,
-):
-    """
-    체인 설명
-
-    Args:
-        retriever: RAG 벡터스토어 리트리버
-        model: LLM 모델명
-        temperature: 응답의 창의성 (0~1)
-        max_tokens: 최대 토큰 수
-
-    Returns:
-        RunnableSequence: 실행 가능한 체인
-    """
-    llm = get_llm(model=model, temperature=temperature, max_tokens=max_tokens)
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "시스템 프롬프트..."),
-        ("user", "{query}")
-    ])
-
-    return prompt | llm | StrOutputParser()
+POST /api/chat
+Request: {
+    "message": "떡볶이 먹어도 될까요?",
+    "session_id": "uuid",
+    "limits": {...}  # 영양소 제한치
+}
+Response: {
+    "answer": "...",
+    "nutrition": {...},
+    "risk_level": "high|medium|low",
+    "alternatives": [...],
+    "quiz_offer": true
+}
 ```
 
-### 프롬프트 엔지니어링 원칙
-
-1. **역할 정의 명확화**: "당신은 신장질환 환자 영양 관리 전문가입니다"
-2. **출력 형식 지정**: 마크다운 리스트, JSON 등 구체적 형식 명시
-3. **도메인 가이드라인 임베딩**: 칼륨/나트륨/인 제한 수치 명시
-4. **Few-shot 예시 활용**: 예상 출력 형식 예시 제공
-
-### 에러 처리
-
+### 퀴즈 API
 ```python
-try:
-    result = chain.invoke({"query": user_query})
-except Exception as e:
-    logger.error(f"체인 실행 오류: {e}")
-    return "죄송합니다. 응답을 생성할 수 없습니다."
+POST /api/quiz/generate
+Request: {
+    "topic": "떡볶이",
+    "difficulty": "medium",
+    "count": 3
+}
 ```
 
-## 도메인 지식
+### 자료 추천 API
+```python
+GET /api/resources/recommend?keyword=저염식&limit=5
+```
 
-### 신장질환 영양 기준 (CKD Guidelines)
+### 영양 분석 API
+```python
+POST /api/nutrition/analyze
+Request: {
+    "ingredients": ["떡", "고추장", "어묵"]
+}
+```
 
-| 영양소 | 투석 전 | 투석 중 | 이식 후 |
-|-------|--------|--------|--------|
-| 단백질 | 0.6-0.8g/kg | 1.2-1.3g/kg | 0.8-1.0g/kg |
-| 나트륨 | <5g/일 | <6g/일 | <6g/일 |
-| 칼륨 | <2000mg/일 | <2000mg/일 | 조정 |
-| 인 | <800mg/일 | <1000mg/일 | <1200mg/일 |
-| 칼로리 | 30-35kcal/kg | 30-35kcal/kg | 30kcal/kg |
+## 학습 데이터 위치
 
-**위험도 표시**:
-- 녹색 (0-80%): 안전
-- 노란색 (80-100%): 주의
-- 빨간색 (>100%): 위험
+### PDF 문서 (Documents/Data/)
+- 2권_혈액투석_환자를_위한_영양-식생활_관리.pdf
+- 대한신장학회(출판자료)_혈액투석_질환식_식단_레시피_가이드.pdf
+- 식약처(교육자료)_나트륨줄이기자료집.pdf
+- 식약처(교육자료)_삼삼한밥상7_(내지).pdf
+- 식약처(교육자료)_우리몸을살리는저염식메뉴레시피1.pdf
+- 신장질환 식품교환표-식사요법.pdf
 
-### 의도 분류 기준
+### RAG 시스템 초기화
+```python
+# 최초 1회만 실행
+chatbot.rag_system.load_pdfs([
+    "Documents/Data/식약처(교육자료)_나트륨줄이기자료집.pdf",
+    "Documents/Data/대한신장학회(출판자료)_혈액투석_질환식_식단_레시피_가이드.pdf"
+    # ... 나머지 PDF
+])
+```
 
-1. **recommendation**: 재료 대체제, 대체 식품 추천 요청
-   - 예: "김치찌개에서 저칼륨 재료로 뭐 쓸 수 있어?"
+### 영양 데이터 로드
+```python
+# 국가표준식품성분표.xlsx에서 데이터 로드
+chatbot.nutrition_db.load_from_excel("nutrition_data.xlsx")
+```
 
-2. **summary**: 조리법, 주의사항, 정보 제공 요청
-   - 예: "혈액투석 환자 식사 관리 주의사항은?"
+## 워크플로우 구현 순서
 
-3. **quiz**: 문제 출제 요청
-   - 예: "저염식에 대한 퀴즈 3개 만들어줘"
+### Phase 1: 기본 인프라 (Day 1-2)
+1. PostgreSQL Docker 설정
+2. FastAPI 프로젝트 구조
+3. 기본 데이터베이스 스키마
+4. 환경 설정 및 Docker Compose
+
+### Phase 2: 핵심 기능 (Day 3-4)
+1. LLM 연동 및 프롬프트 최적화
+2. RAG 시스템 구현 (FAISS)
+3. 영양 정보 분석 로직
+4. 대체 재료 추천 알고리즘
+
+### Phase 3: 부가 기능 (Day 5)
+1. 퀴즈 생성 시스템
+2. 웹 크롤링 및 자료 추천
+3. Redis 캐싱 시스템
+
+### Phase 4: 프론트엔드 (Day 6)
+1. Streamlit UI 구현
+2. Plotly 데이터 시각화
+3. 실시간 채팅 인터페이스
+
+### Phase 5: 테스트 및 최적화 (Day 7)
+1. 통합 테스트
+2. 성능 최적화
+3. 발표 자료 준비
+
+## 참조 구현 코드
+
+`kongdak-참조소스.py` 파일에 전체 워크플로우 구현 예시가 포함되어 있습니다:
+- NutritionDB 클래스: PostgreSQL 연동
+- RAGSystem 클래스: FAISS 벡터 스토어
+- KongdakChatbot 클래스: 전체 파이프라인
+
+## 보안 고려사항
+
+- API 키는 반드시 `.env` 파일에서 관리
+- `.env` 파일은 `.gitignore`에 추가
+- SQL Injection 방지 (parameterized query 사용)
+- XSS 방지 (Streamlit 기본 제공)
+
+## 성능 최적화
+
+### 응답 시간 개선
+- LLM 응답 스트리밍 (FastAPI StreamingResponse)
+- PostgreSQL 인덱싱 (`CREATE INDEX idx_foods_name ON foods(name)`)
+- Redis 캐싱 (자주 조회되는 음식)
+- 배치 처리 (`executemany` 사용)
+
+### 확장성
+- FastAPI async/await 활용
+- 데이터베이스 커넥션 풀링
+- 로드밸런싱 준비
+
+## 웹 크롤링 (3순위 기능)
+
+### 신뢰할 수 있는 도메인
+- mfds.go.kr (식약처)
+- ksn.or.kr (대한신장학회)
+- dietitian.or.kr (대한영양사협회)
+
+### 크롤링 프로세스
+1. 비동기 HTTP 요청 (aiohttp)
+2. BeautifulSoup로 파싱
+3. 관련성 점수 계산 (키워드 매칭)
+4. URL 중복 제거 (MD5 해시)
+5. 관련성 순으로 정렬
 
 ## 테스트 시나리오
 
-`test_modularized.py`에 포함된 4가지 테스트:
+### 사용자 시나리오 예시
+1. "떡볶이 먹어도 될까요?" 입력
+2. 영양 분석 결과 확인 (나트륨 초과 경고)
+3. 대체 레시피 확인 (저염 떡볶이)
+4. 퀴즈 풀기 버튼 클릭
+5. 관련 자료 추천 확인
 
+### API 테스트
+```bash
+# 채팅 테스트
+curl -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "떡볶이 먹어도 될까요?", "session_id": "test-123"}'
+
+# 퀴즈 생성 테스트
+curl -X POST http://localhost:8000/api/quiz/generate \
+  -H "Content-Type: application/json" \
+  -d '{"topic": "저염식", "difficulty": "easy", "count": 3}'
+```
+
+## 문제 해결
+
+### PostgreSQL 연결 실패
+```bash
+# Docker 컨테이너 상태 확인
+docker ps | grep postgres
+
+# 로그 확인
+docker logs kongdak_postgres
+```
+
+### FAISS 인덱스 로드 실패
 ```python
-test_queries = [
-    "김치찌개 만들 때 저칼륨 재료로 대체할 수 있는 게 뭐야?",
-    # → recommendation
-
-    "된장찌개 만드는 법을 저칼륨으로 어떻게 해야 하고 주의할 점은?",
-    # → recommendation + summary (조건부)
-
-    "혈액투석 환자의 식사 관리 주의사항 요약해줘",
-    # → summary
-
-    "저염식에 대한 퀴즈 3개 만들어줘",
-    # → quiz (객관식 2개, 주관식 1개)
-]
+# 인덱스 재생성
+chatbot.rag_system.load_pdfs([...])
 ```
 
-## Git 워크플로우 규칙
+### LLM API 오류
+- API 키 확인: `.env` 파일의 `OPENAI_API_KEY`
+- Rate Limit 확인: 요청 횟수 제한 초과 여부
+- Timeout 설정: 긴 응답 시 timeout 증가
 
-**필수 절차**:
-```bash
-git pull origin main      # 1. 항상 pull 먼저
-git add .                 # 2. 변경사항 스테이징
-git commit -m "메시지"    # 3. 커밋 (한글 메시지)
-git push origin main      # 4. 푸시
-```
+## 프로젝트 팀 정보
 
-**커밋 메시지**: 한글로 작성
-**충돌 발생 시**: 수동 해결 후 재커밋
+- **프로젝트 기간**: 2025.10.16 ~ 2025.10.22 (1주일)
+- **협업 도구**: GitHub, Notion, Slack
+- **배포 환경**: Local 환경 (Docker 컨테이너)
 
-## 환경변수 (.env)
+## 추가 참고 자료
 
-```bash
-OPENAI_API_KEY=sk-...                    # 필수
-ANTHROPIC_API_KEY=sk-ant-...             # 선택
-TAVILY_API_KEY=tvly-...                  # 선택 (웹 검색용)
-OPENAI_MODEL=gpt-4o-mini                 # 기본 모델
-VECTORSTORE_PATH=./data/vectorstore      # 벡터스토어 경로
-```
-
-## 향후 구축 예정
-
-1. **FastAPI 백엔드**: RESTful API 엔드포인트
-   - `POST /api/chat`: 텍스트 쿼리 처리
-   - `POST /api/chat/image`: 이미지 분석 (Vision API)
-   - `GET /health`: 상태 체크
-
-2. **Streamlit 프론트엔드**: 3개 페이지
-   - 텍스트 쿼리
-   - 이미지 분석
-   - 영양 정보 조회
-
-3. **MongoDB 통합**: CSV 데이터 영구 저장
-   - `foods` 컬렉션
-   - `recipes` 컬렉션
-
-4. **이미지 분석**: OpenAI Vision API로 음식 사진 분석
-
-## 주요 의존성
-
-```
-langchain>=0.1.0
-langchain-openai
-langchain-community
-langgraph
-faiss-cpu
-pypdf
-tavily-python
-python-dotenv
-pydantic
-pandas
-```
-
-## 참고 문서
-
-- [LangChain 공식 문서](https://python.langchain.com/)
-- [LangGraph 공식 문서](https://langchain-ai.github.io/langgraph/)
 - [OpenAI API Reference](https://platform.openai.com/docs/api-reference)
-- [Tavily Search API](https://docs.tavily.com/)
+- [FastAPI 공식 문서](https://fastapi.tiangolo.com/)
+- [Streamlit 공식 문서](https://docs.streamlit.io/)
+- [LangChain 문서](https://python.langchain.com/)
+- [OpenAI Prompt Engineering Guide](https://platform.openai.com/docs/guides/prompt-engineering)
