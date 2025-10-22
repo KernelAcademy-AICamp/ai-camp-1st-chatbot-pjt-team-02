@@ -60,11 +60,14 @@
 
 ```bash
 # 1. 저장소 클론
-git clone <repository-url>
+git clone https://github.com/KernelAcademy-AICamp/ai-camp-1st-chatbot-pjt-team-02
 cd ai-camp-1st-chatbot-pjt-team-02
 
 # 2. 가상 환경 생성
 python -m venv venv
+# 또는
+python3 -m venv venv
+
 source venv/bin/activate  # macOS/Linux
 # 또는
 venv\Scripts\activate  # Windows
@@ -84,7 +87,7 @@ cp .env.example .env
 ### Streamlit 프론트엔드 실행
 
 ```bash
-streamlit run app.py
+streamlit run app_multimodal.py
 ```
 
 앱이 `http://localhost:8501`에서 실행됩니다.
