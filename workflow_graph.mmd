@@ -1,0 +1,40 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	prepare_input(prepare_input)
+	classifier(classifier)
+	prepare_recommendation(prepare_recommendation)
+	evaluate_summary_need(evaluate_summary_need)
+	summary(summary)
+	quiz(quiz)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> prepare_input;
+	classifier -.-> prepare_recommendation;
+	classifier -.-> quiz;
+	classifier -.-> summary;
+	evaluate_summary_need -. &nbsp;end&nbsp; .-> __end__;
+	evaluate_summary_need -.-> summary;
+	prepare_input --> classifier;
+	prepare_recommendation --> recommendation_subgraph\3aextract_ingredients;
+	recommendation_subgraph\3agenerate_recommendation --> evaluate_summary_need;
+	quiz --> __end__;
+	summary --> __end__;
+	subgraph recommendation_subgraph
+	recommendation_subgraph\3aextract_ingredients(extract_ingredients)
+	recommendation_subgraph\3aparse_ingredients(parse_ingredients)
+	recommendation_subgraph\3aevaluate_nutrition(evaluate_nutrition)
+	recommendation_subgraph\3afind_alternatives(find_alternatives)
+	recommendation_subgraph\3agenerate_recommendation(generate_recommendation)
+	recommendation_subgraph\3aevaluate_nutrition -.-> recommendation_subgraph\3afind_alternatives;
+	recommendation_subgraph\3aevaluate_nutrition -.-> recommendation_subgraph\3agenerate_recommendation;
+	recommendation_subgraph\3aextract_ingredients --> recommendation_subgraph\3aparse_ingredients;
+	recommendation_subgraph\3afind_alternatives --> recommendation_subgraph\3agenerate_recommendation;
+	recommendation_subgraph\3aparse_ingredients --> recommendation_subgraph\3aevaluate_nutrition;
+	end
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

@@ -1,0 +1,43 @@
+# Core Framework
+streamlit==1.41.1
+fastapi==0.115.6
+uvicorn[standard]==0.32.0
+
+# LLM & AI
+openai==1.59.0
+langchain==0.3.15
+langchain-core==0.3.28
+langchain-community==0.3.15
+langchain-openai==0.2.4
+langgraph==0.2.52
+
+# Vector Store & Embeddings
+faiss-cpu==1.10.0
+langchain-text-splitters==0.3.2
+
+# PDF Processing
+pypdf==5.1.0
+
+# Image Processing
+pillow==11.1.0
+
+# Data Processing
+pandas==2.2.3
+
+# Database
+pymongo==4.10.1
+
+# HTTP & Web
+requests==2.32.3
+
+# Environment & Configuration
+python-dotenv==1.0.0
+
+# Utilities
+pydantic==2.10.5
+typing-extensions==4.12.2
+
+# Optional: Development
+pytest==8.3.4
+black==25.1.0
+flake8==7.1.1
